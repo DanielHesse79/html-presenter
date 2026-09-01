@@ -6,6 +6,7 @@
  *      and posts {slideIndexChanged: N} to the parent window on nav.
  *  (b) keyboard navigation — ←/→, PgUp/PgDn, Space, Home/End, number keys.
  *  (c) press R to reset to slide 0 (with a tasteful keyboard hint).
+ *  (c2) press B to black out the projector without leaving the deck.
  *  (d) bottom-center overlay showing slide count + hints, fades out on idle.
  *  (e) auto-scaling — inner canvas is a fixed design size (default 1920×1080)
  *      scaled with `transform: scale()` to fit the viewport, letterboxed.
@@ -220,6 +221,26 @@
       margin: 0 2px;
     }
 
+    /* Blackout — cut the projector to black without leaving the deck.
+       Sits above the slides but below the overlay: the room sees nothing
+       while whoever is at the machine can still see the controls. */
+    .blackout {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+      z-index: 2147482500;
+    }
+    .blackout[data-on] { opacity: 1; pointer-events: auto; }
+
+    /* Preview: the panel renders thumbnails by loading this same deck in
+       an iframe. The control pill flashing inside a 320px thumbnail is
+       noise, and the tap zones there would swallow clicks. */
+    :host([preview]) .overlay,
+    :host([preview]) .tapzones { display: none !important; }
+
     /* ── Print: one page per slide, no chrome ────────────────────────────
        The screen layout stacks every slide at inset:0 inside a scaled
        canvas; for print we want them in document flow at the authored
@@ -261,7 +282,7 @@
         break-after: auto;
         page-break-after: auto;
       }
-      .overlay, .tapzones { display: none !important; }
+      .overlay, .tapzones, .blackout { display: none !important; }
     }
   `;
 
@@ -272,6 +293,7 @@
       super();
       this._root = this.attachShadow({ mode: 'open' });
       this._index = 0;
+      this._blackout = false;
       this._slides = [];
       this._notes = [];
       this._hideTimer = null;
@@ -378,7 +400,13 @@
       overlay.querySelector('.next').addEventListener('click', () => this._go(this._index + 1, 'click'));
       overlay.querySelector('.reset').addEventListener('click', () => this._go(0, 'click'));
 
-      this._root.append(style, stage, tapzones, overlay);
+      const blackout = document.createElement('div');
+      blackout.className = 'blackout export-hidden';
+      blackout.setAttribute('aria-hidden', 'true');
+      blackout.setAttribute('data-noncommentable', '');
+
+      this._root.append(style, stage, tapzones, blackout, overlay);
+      this._blackoutEl = blackout;
       this._canvas = canvas;
       this._slot = slot;
       this._overlay = overlay;
@@ -575,6 +603,8 @@
         this._go(this._slides.length - 1, 'keyboard');
       } else if (key === 'r' || key === 'R') {
         this._go(0, 'keyboard');
+      } else if (key === 'b' || key === 'B') {
+        this.toggleBlackout();
       } else if (/^[0-9]$/.test(key)) {
         // 1..9 jump to that slide; 0 jumps to 10.
         const n = key === '0' ? 9 : parseInt(key, 10) - 1;
@@ -601,6 +631,24 @@
     }
 
     // Public API ------------------------------------------------------------
+
+    /** Projector blackout. Emits `blackoutchange` so the agent can
+     *  report the change back to the operator panel. */
+    get blackout() { return this._blackout; }
+    set blackout(on) { this._setBlackout(on); }
+    toggleBlackout() { this._setBlackout(!this._blackout); }
+
+    _setBlackout(on) {
+      const next = !!on;
+      if (next === this._blackout) return;
+      this._blackout = next;
+      if (this._blackoutEl) this._blackoutEl.toggleAttribute('data-on', next);
+      this.dispatchEvent(new CustomEvent('blackoutchange', {
+        detail: { blackout: next },
+        bubbles: true,
+        composed: true,
+      }));
+    }
 
     /** Current slide index (0-based). */
     get index() { return this._index; }

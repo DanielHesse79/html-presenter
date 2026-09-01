@@ -7,10 +7,10 @@
 <!-- One entry per slide, in order. Missing entries just show a placeholder. -->
 <script type="application/json" id="speaker-notes">
 [
-  "Opening slide. The presenter window shows this text large enough to read at a glance, with the next note previewed underneath.",
+  "Opening slide. The operator panel shows this note large enough to read at a glance, with the next one previewed underneath.",
   "Slides are plain HTML — a <section> per slide, styled however you like. deck-stage scales the whole thing to fit whatever screen it lands on.",
   "Add data-sound to a slide and deck-audio.js plays it on arrival, then stops when you move on.",
-  "Press P for the presenter view, then export to PDF or PPTX from tools/."
+  "The panel is the console: clock, editable times, volume, blackout. Export to PDF or PPTX from tools/ for a backup."
 ]
 </script>
 
@@ -50,9 +50,9 @@
   .rule { height: 4px; width: 120px; background: var(--accent); }
 </style>
 
-<script src="../deck-stage.js"></script>
-<script src="../presenter.js" data-presenter="../presenter.html"></script>
-<script src="../deck-audio.js"></script>
+<!-- No framework tags on purpose. tools/serve.py mounts deck-stage.js,
+     deck-audio.js and deck-agent.js at /__deck/ and injects them, so this
+     deck stays as portable as one you wrote yourself. -->
 </head>
 <body>
 
@@ -62,7 +62,7 @@
     <div class="frame">
       <div class="rule"></div>
       <div class="eyebrow">deck-stage</div>
-      <h1>HTML decks,<br/>with a real<br/>presenter view.</h1>
+      <h1>HTML decks,<br/>with a real<br/>operator panel.</h1>
     </div>
   </section>
 
@@ -95,11 +95,11 @@
   <section data-label="Presenting">
     <div class="frame">
       <div class="eyebrow">Presenting</div>
-      <h2>Press <code>P</code>.</h2>
+      <h2>The laptop is the console.</h2>
       <p>
-        The presenter window opens with your notes, the next note, a slide
-        counter and an elapsed-time clock. Drag it to your second screen —
-        navigation syncs in both directions.
+        Notes, a big pausable clock, a per-slide time plan you can retype on
+        the night, master volume and a blackout key. This window shows only
+        slides. Navigation syncs in both directions.
       </p>
     </div>
   </section>
