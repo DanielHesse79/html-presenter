@@ -9,7 +9,7 @@
 [
   "Opening slide. The operator panel shows this note large enough to read at a glance, with the next one previewed underneath.",
   "Slides are plain HTML — a <section> per slide, styled however you like. deck-stage scales the whole thing to fit whatever screen it lands on.",
-  "Add data-sound to a slide and deck-audio.js plays it on arrival, then stops when you move on.",
+  "This slide is sounding. Pull the master fader in the panel, or press M, and the tone follows.\n\ndata-sound-volume is the clip's own level; the fader scales it rather than replacing it.",
   "The panel is the console: clock, editable times, volume, blackout. Export to PDF or PPTX from tools/ for a backup."
 ]
 </script>
@@ -78,16 +78,16 @@
     </div>
   </section>
 
-  <!-- Drop an audio file next to the deck and uncomment to hear it:
-       <section data-label="Sound" data-sound="applause.mp3" data-sound-volume="0.6"> -->
-  <section data-label="Sound">
+  <section data-label="Sound" data-sound="assets/ambient-loop.wav"
+           data-sound-volume="0.6" data-sound-loop>
     <div class="frame">
       <div class="eyebrow">Optional</div>
       <h2>Sound, per slide.</h2>
       <p>
-        Add <code>data-sound="clip.mp3"</code> to any slide. It plays on
-        arrival and stops when you navigate away. <code>data-sound-loop</code>
-        and <code>data-sound-volume</code> are there if you need them.
+        This slide is playing a looping tone. Add
+        <code>data-sound="clip.mp3"</code> to any slide and it starts on
+        arrival, then stops when you leave. Pull the fader in the panel and
+        you will hear this one follow it.
       </p>
     </div>
   </section>
