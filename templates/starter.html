@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>New deck</title>
+
+<!--
+  Copy this file anywhere and present it with:
+
+      python /path/to/deck-stage/tools/serve.py my-deck.html
+
+  The server mounts deck-stage.js, presenter.js and deck-audio.js at /__deck/
+  and injects them, so this file stays portable — no framework tags, no build
+  step, no relative paths to keep in sync.
+
+  Press P once the deck is open to get the presenter view.
+-->
+
+<!-- Speaker notes: one entry per slide, in order. -->
+<script type="application/json" id="speaker-notes">
+[
+  "Opening. Say who you are and what the next few minutes are for.",
+  "The problem, stated plainly. One idea per slide.",
+  "What you want them to do next."
+]
+</script>
+
+<!-- Time plan: minutes per slide, in order. Optional — delete it and the
+     presenter just shows a plain elapsed clock instead.
+     The presenter sums these into a total, shows how long you have spent on
+     the current slide against its budget, and tells you whether you are
+     ahead of or behind the plan. -->
+<script type="application/json" id="deck-plan">
+[1, 3, 1]
+</script>
+
+<style>
+  :root {
+    --bg: #F7F3EC;
+    --ink: #15233D;
+    --muted: #6F7B92;
+    --accent: #B8741A;
+  }
+  html, body { margin: 0; background: var(--bg); }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  deck-stage section { background: var(--bg); color: var(--ink); overflow: hidden; }
+
+  .frame {
+    width: 100%; height: 100%; box-sizing: border-box;
+    padding: 100px 120px;
+    display: flex; flex-direction: column; justify-content: center; gap: 28px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 24px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 { font-size: 150px; line-height: 0.94; margin: 0; letter-spacing: -0.03em; font-weight: 500; }
+  h2 { font-size: 96px;  line-height: 0.98; margin: 0; letter-spacing: -0.02em; font-weight: 500; }
+  p  { font-size: 34px; line-height: 1.4; color: var(--muted); margin: 0; max-width: 1300px; }
+  .rule { height: 4px; width: 120px; background: var(--accent); }
+
+  /* Slide numbers, bottom right. Delete if you do not want them. */
+  .frame::after {
+    content: attr(data-n);
+    position: absolute; right: 120px; bottom: 60px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 22px; color: var(--muted); letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<!-- Design at a fixed size; deck-stage scales it to fit any screen. -->
+<deck-stage width="1920" height="1080">
+
+  <section data-label="Title">
+    <div class="frame" data-n="01">
+      <div class="rule"></div>
+      <div class="eyebrow">Your subtitle</div>
+      <h1>Your title<br/>goes here.</h1>
+    </div>
+  </section>
+
+  <section data-label="The point">
+    <div class="frame" data-n="02">
+      <div class="eyebrow">The point</div>
+      <h2>One idea per slide.</h2>
+      <p>
+        Keep body text short enough to read from the back of the room.
+        Anything you would say out loud belongs in the speaker notes above,
+        not on the slide.
+      </p>
+    </div>
+  </section>
+
+  <section data-label="Close">
+    <div class="frame" data-n="03">
+      <div class="eyebrow">Close</div>
+      <h2>Ask for one thing.</h2>
+      <p>Make the next step obvious and small.</p>
+    </div>
+  </section>
+
+</deck-stage>
+
+</body>
+</html>

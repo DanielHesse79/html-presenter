@@ -25,6 +25,10 @@
     flex-direction: column;
     overflow: hidden;
   }
+  .mono {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
 
   header {
     display: flex; justify-content: space-between; align-items: center;
@@ -33,7 +37,6 @@
   }
   .status {
     display: flex; align-items: center; gap: 10px;
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
     color: var(--muted);
   }
@@ -43,26 +46,21 @@
     transition: background 200ms ease;
   }
   .dot[data-live] { background: var(--good); }
-  .count {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 20px; font-variant-numeric: tabular-nums;
-    letter-spacing: 0.04em;
-  }
+  .count { font-size: 20px; letter-spacing: 0.04em; }
   .count .total { color: var(--muted); }
 
   main {
     flex: 1; min-height: 0;
-    display: flex; flex-direction: column; gap: 20px;
-    padding: 28px 40px;
+    display: flex; flex-direction: column; gap: 18px;
+    padding: 24px 40px;
   }
   .eyebrow {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
     color: var(--accent);
   }
   .slide-label {
     font-size: 20px; color: var(--ink-soft);
-    margin-top: -12px; min-height: 24px;
+    margin-top: -10px; min-height: 24px;
   }
   .note {
     flex: 1; min-height: 0; overflow-y: auto;
@@ -76,11 +74,10 @@
     border: 1px solid var(--hairline);
     border-left: 3px solid var(--accent);
     background: rgba(247, 243, 236, 0.04);
-    padding: 16px 22px;
+    padding: 14px 20px;
   }
   .next[hidden] { display: none; }
   .next-label {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
     color: var(--muted); margin-bottom: 8px;
   }
@@ -90,21 +87,45 @@
     overflow: hidden;
   }
 
+  /* ── Time plan ──────────────────────────────────────────────────────── */
+  .plan { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+  .plan[hidden] { display: none; }
+  .plan-bar {
+    height: 6px; width: 100%; border-radius: 3px;
+    background: rgba(247, 243, 236, 0.10); overflow: hidden;
+  }
+  .plan-fill {
+    height: 100%; width: 0%;
+    background: var(--good);
+    transition: width 400ms linear, background 300ms ease;
+  }
+  .plan-fill[data-over] { background: var(--bad); }
+  .plan-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 16px; font-size: 13px; color: var(--muted);
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .plan-row b { font-weight: 500; color: var(--ink-soft); font-size: 15px; }
+
   footer {
     display: flex; justify-content: space-between; align-items: center;
     gap: 20px; padding: 14px 32px;
     border-top: 1px solid var(--hairline);
   }
-  .clock {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 22px; font-variant-numeric: tabular-nums;
-  }
-  .clock .elapsed { color: var(--accent); }
+  .clock { display: flex; align-items: baseline; gap: 14px; }
+  .clock .elapsed { font-size: 26px; color: var(--ink); }
   .clock .target { color: var(--muted); font-size: 15px; }
-  .hint {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 11px; color: var(--muted);
+  .pace {
+    font-size: 15px; padding: 4px 12px; border-radius: 3px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    border: 1px solid var(--hairline); color: var(--muted);
   }
+  .pace[data-state="ahead"] { color: var(--good); border-color: rgba(74,154,107,0.5); }
+  .pace[data-state="behind"] { color: var(--bad); border-color: rgba(196,69,43,0.5); }
+  .pace[data-state="on"] { color: var(--ink-soft); }
+  .pace[hidden] { display: none; }
+
+  .hint { font-size: 11px; color: var(--muted); }
   kbd {
     font-family: inherit; font-size: 10px;
     padding: 2px 6px; margin: 0 2px;
@@ -123,41 +144,50 @@
 
   .banner {
     padding: 10px 32px; text-align: center;
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 13px; background: #6B2D1F; color: #fff;
   }
   .banner[hidden] { display: none; }
 </style>
 </head>
 <body>
-  <div class="banner" id="banner" hidden></div>
+  <div class="banner mono" id="banner" hidden></div>
 
   <header>
-    <div class="status">
+    <div class="status mono">
       <span class="dot" id="dot"></span>
       <span id="status-text">Waiting for deck…</span>
     </div>
-    <div class="count">
+    <div class="count mono">
       <span id="current">—</span><span class="total"> / <span id="total">—</span></span>
     </div>
   </header>
 
   <main>
-    <div class="eyebrow">Now speaking</div>
+    <div class="eyebrow mono">Now speaking</div>
     <div class="slide-label" id="slide-label"></div>
     <div class="note empty" id="note">Waiting for the deck to report its position…</div>
+
+    <div class="plan" id="plan" hidden>
+      <div class="plan-bar"><div class="plan-fill" id="plan-fill"></div></div>
+      <div class="plan-row mono">
+        <span>This slide <b id="plan-spent">0:00</b> / <b id="plan-budget">0:00</b></span>
+        <span id="plan-remaining"></span>
+      </div>
+    </div>
+
     <div class="next" id="next" hidden>
-      <div class="next-label">Next · <span id="next-label"></span></div>
+      <div class="next-label mono">Next · <span id="next-label"></span></div>
       <div class="next-text" id="next-text"></div>
     </div>
   </main>
 
   <footer>
-    <div class="clock">
+    <div class="clock mono">
       <span class="elapsed" id="elapsed">00:00</span>
       <span class="target" id="target"></span>
+      <span class="pace" id="pace" hidden></span>
     </div>
-    <div class="hint">
+    <div class="hint mono">
       <kbd>←</kbd><kbd>→</kbd> navigate · <kbd>R</kbd> reset clock · <kbd>F</kbd> fullscreen
     </div>
     <button id="reset">Reset clock</button>
@@ -169,6 +199,7 @@
   const CHANNEL = params.get('channel') || 'deck-stage';
   const STALE_MS = 6000;      // no heartbeat for this long → show disconnected
   const HELLO_MS = 1500;      // keep announcing until the deck answers
+  const RETRY_MS = 5000;      // back off between failed deck fetches
 
   const el = (id) => document.getElementById(id);
   const ui = {
@@ -176,58 +207,155 @@
     current: el('current'), total: el('total'),
     label: el('slide-label'), note: el('note'),
     next: el('next'), nextLabel: el('next-label'), nextText: el('next-text'),
-    elapsed: el('elapsed'), target: el('target'), reset: el('reset'),
+    plan: el('plan'), planFill: el('plan-fill'), planSpent: el('plan-spent'),
+    planBudget: el('plan-budget'), planRemaining: el('plan-remaining'),
+    elapsed: el('elapsed'), target: el('target'), pace: el('pace'),
+    reset: el('reset'),
   };
 
   let notes = [];
-  let notesUrl = null;
-  let lastNotesAttempt = 0;
+  let plan = null;            // minutes per slide, or null when the deck has none
+  let planCumulative = [];    // seconds scheduled before each slide
+  let planTotal = 0;          // seconds
+  let deckUrl = null;
+  let lastFetch = 0;
   let total = 0;
   let lastSeen = 0;
-  let startTime = Date.now();
-  const RETRY_MS = 5000;      // back off between failed note fetches
+  let index = -1;
+  let label = '';
+  let slideArrivedAt = Date.now();
 
-  // ── Clock ──────────────────────────────────────────────────────────────
+  // Survive a reload of this window mid-talk: losing the clock in front of an
+  // audience is worse than the small amount of state we keep here.
+  const CLOCK_KEY = 'deck-stage:clock';
+  let startTime = Number(sessionStorage.getItem(CLOCK_KEY)) || Date.now();
+  const persistClock = () => {
+    try { sessionStorage.setItem(CLOCK_KEY, String(startTime)); } catch (_) {}
+  };
+  persistClock();
+
+  // ── Formatting ─────────────────────────────────────────────────────────
   const pad = (n) => String(n).padStart(2, '0');
+  function clock(seconds) {
+    const s = Math.max(0, Math.round(seconds));
+    return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+  }
+  function signed(seconds) {
+    const s = Math.round(Math.abs(seconds));
+    return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+  }
+
+  // ── Time plan ──────────────────────────────────────────────────────────
+  function setPlan(minutes) {
+    if (!Array.isArray(minutes) || !minutes.length) {
+      plan = null;
+      ui.plan.hidden = true;
+      ui.pace.hidden = true;
+      ui.target.textContent = '';
+      return;
+    }
+    plan = minutes.map((m) => Math.max(0, Number(m) || 0) * 60);
+    planCumulative = [];
+    let running = 0;
+    for (const seconds of plan) {
+      planCumulative.push(running);
+      running += seconds;
+    }
+    planTotal = running;
+    ui.target.textContent = `/ plan ${clock(planTotal)}`;
+  }
+
   function tick() {
-    const s = Math.floor((Date.now() - startTime) / 1000);
-    ui.elapsed.textContent = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+    const now = Date.now();
+    const elapsed = (now - startTime) / 1000;
+    ui.elapsed.textContent = clock(elapsed);
+
+    if (!plan || index < 0 || index >= plan.length) {
+      ui.plan.hidden = true;
+      ui.pace.hidden = true;
+      return;
+    }
+
+    const budget = plan[index];
+    const spent = (now - slideArrivedAt) / 1000;
+
+    ui.plan.hidden = false;
+    ui.planSpent.textContent = clock(spent);
+    ui.planBudget.textContent = clock(budget);
+    const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
+    ui.planFill.style.width = `${pct}%`;
+    ui.planFill.toggleAttribute('data-over', budget > 0 && spent > budget);
+
+    const left = planTotal - planCumulative[index] - Math.min(spent, budget);
+    ui.planRemaining.textContent = `${clock(Math.max(0, left))} left in plan`;
+
+    // Drift against the plan. While you are still inside the current slide's
+    // budget this holds steady at whatever it was on arrival — it only starts
+    // growing once you overrun. That makes it readable at a glance mid-talk
+    // instead of ticking up every second.
+    const owed = planCumulative[index] + Math.min(spent, budget);
+    const drift = elapsed - owed;
+
+    ui.pace.hidden = false;
+    if (Math.abs(drift) < 15) {
+      ui.pace.dataset.state = 'on';
+      ui.pace.textContent = 'on plan';
+    } else if (drift > 0) {
+      ui.pace.dataset.state = 'behind';
+      ui.pace.textContent = `${signed(drift)} behind`;
+    } else {
+      ui.pace.dataset.state = 'ahead';
+      ui.pace.textContent = `${signed(drift)} ahead`;
+    }
   }
   setInterval(tick, 500);
-  ui.reset.addEventListener('click', () => { startTime = Date.now(); tick(); });
 
-  // ── Notes ──────────────────────────────────────────────────────────────
-  // Fetched straight from the deck document, so the presenter never needs a
-  // handle on the deck window and survives either side reloading.
-  async function loadNotes(rawUrl) {
+  ui.reset.addEventListener('click', resetClock);
+  function resetClock() {
+    startTime = Date.now();
+    slideArrivedAt = startTime;
+    persistClock();
+    tick();
+  }
+
+  // ── Deck document: notes + plan ────────────────────────────────────────
+  // Fetched straight from the deck, so the presenter never needs a handle on
+  // the deck window and survives either side reloading.
+  async function loadDeck(rawUrl) {
     if (!rawUrl) return;
     // Drop the fragment: deck-stage keeps #<slide> in sync with the current
     // position, so an unstripped URL would look "new" on every navigation.
     const url = new URL(rawUrl, location.href).href.split('#')[0];
-    if (url === notesUrl) return;
-    if (Date.now() - lastNotesAttempt < RETRY_MS) return;
-    lastNotesAttempt = Date.now();
+    if (url === deckUrl) return;
+    if (Date.now() - lastFetch < RETRY_MS) return;
+    lastFetch = Date.now();
 
     try {
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
-      const tag = doc.getElementById('speaker-notes');
-      if (!tag) {
-        notesUrl = url;   // nothing to load; stop asking
-        note('This deck has no #speaker-notes block.', true);
-        return;
+
+      const notesTag = doc.getElementById('speaker-notes');
+      if (notesTag) {
+        const parsed = JSON.parse(notesTag.textContent || '[]');
+        if (Array.isArray(parsed)) notes = parsed;
       }
-      const parsed = JSON.parse(tag.textContent || '[]');
-      if (Array.isArray(parsed)) {
-        notes = parsed;
-        notesUrl = url;
-        render();
+
+      const planTag = doc.getElementById('deck-plan');
+      if (planTag) {
+        const parsed = JSON.parse(planTag.textContent || 'null');
+        setPlan(Array.isArray(parsed) ? parsed : (parsed && parsed.slides));
+      } else {
+        setPlan(null);
       }
+
+      deckUrl = url;   // stop asking, even if the deck carried neither block
+      if (!notesTag) note('This deck has no #speaker-notes block.', true);
+      else render();
     } catch (err) {
       // Keep retrying on the heartbeat — a deck reload or a restarted server
       // fixes itself. Never clobber notes we already have.
-      console.warn('[presenter] Could not load notes:', err);
+      console.warn('[presenter] Could not load deck:', err);
       if (!notes.length) {
         note(`Could not read speaker notes from ${url} — ${err.message}`, true);
       }
@@ -240,9 +368,6 @@
   }
 
   // ── Rendering ──────────────────────────────────────────────────────────
-  let index = -1;
-  let label = '';
-
   function render() {
     if (index < 0) return;
     ui.current.textContent = String(index + 1);
@@ -261,6 +386,7 @@
     } else {
       ui.next.hidden = true;
     }
+    tick();
   }
 
   function setLive(live) {
@@ -295,13 +421,14 @@
 
     if (typeof msg.total === 'number' && msg.total > 0) total = msg.total;
     if (typeof msg.label === 'string') label = msg.label;
-    if (msg.target) ui.target.textContent = `/ target ${msg.target}`;
+    if (msg.target && !plan) ui.target.textContent = `/ target ${msg.target}`;
 
     const changed = msg.index !== index;
+    if (changed) slideArrivedAt = Date.now();
     index = msg.index;
     if (changed || !notes.length) render();
 
-    if (msg.deckUrl) loadNotes(msg.deckUrl);
+    if (msg.deckUrl) loadDeck(msg.deckUrl);
   });
 
   const sayHello = () => bus.postMessage({ type: 'hello' });
@@ -311,7 +438,7 @@
 
   // Optimistic first paint: the deck path is in the query string, so notes can
   // load before the first heartbeat arrives.
-  if (params.get('deck')) loadNotes(params.get('deck'));
+  if (params.get('deck')) loadDeck(params.get('deck'));
 
   // ── Keyboard: drive the deck from this window ──────────────────────────
   document.addEventListener('keydown', (e) => {
@@ -324,7 +451,7 @@
       case 'Home':
         e.preventDefault(); bus.postMessage({ type: 'nav', dir: 'first' }); break;
       case 'r': case 'R':
-        startTime = Date.now(); tick(); break;
+        resetClock(); break;
       case 'f': case 'F':
         if (!document.fullscreenElement) document.documentElement.requestFullscreen();
         else document.exitFullscreen();
@@ -333,6 +460,7 @@
   });
 
   setLive(false);
+  tick();
 })();
 </script>
 </body>
