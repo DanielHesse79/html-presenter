@@ -67,6 +67,7 @@
   .head-right { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
   .count { font-size: 18px; letter-spacing: 0.04em; color: var(--muted); }
   .count b { color: var(--ink); font-weight: 600; }
+  #reload-deck { min-width: 108px; }
 
   /* ── Buttons ────────────────────────────────────────────────────────── */
   button {
@@ -329,6 +330,7 @@
     </div>
     <div class="head-right">
       <span class="count mono"><b id="cur">&mdash;</b> / <span id="total">&mdash;</span></span>
+      <button id="reload-deck" title="Re-read the deck file, refresh the notes and thumbnails, and reload the projector">Reload deck</button>
       <button id="open-projector" class="primary">Open projector</button>
     </div>
   </header>

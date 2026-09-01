@@ -36,6 +36,7 @@ const el = (id) => document.getElementById(id);
 const ui = {
   banner: el('banner'), dot: el('dot'), title: el('deck-title'),
   cur: el('cur'), total: el('total'), openProjector: el('open-projector'),
+  reloadDeck: el('reload-deck'),
   rows: el('rundown-rows'), planTotal: el('plan-total'),
   restorePlan: el('restore-plan'), copyPlan: el('copy-plan'),
   elapsed: el('elapsed'), planOf: el('plan-of'), pace: el('pace'),
@@ -112,19 +113,23 @@ async function loadDeck(url) {
   session.setKey(doc.url);
   session.setSlideCount(doc.slides.length);
   session.setAuthoredPlan(doc.plan);
-  // Budgets typed on a previous run beat the file; the file only fills in when
-  // there is nothing stored for this deck yet.
-  if (!session.restore()) session.restoreAuthoredPlan();
+  if (first) {
+    // Budgets typed on a previous run beat the file; the file only fills in
+    // when there is nothing stored for this deck yet. On a re-read the live
+    // session wins outright: you are mid-talk, and the clock must not jump
+    // back to whatever was last written to storage a second ago.
+    if (!session.restore()) session.restoreAuthoredPlan();
+    ui.volume.value = String(Math.round(session.state.volume * 100));
+    syncMixer();
+  }
 
   rundown.build(doc.slides);
   rundown.setBudgets(session.state.budgets);
 
-  if (first) {
-    previewNow.setDeck(doc.url, doc.design);
-    previewNext.setDeck(doc.url, doc.design);
-    ui.volume.value = String(Math.round(session.state.volume * 100));
-    syncMixer();
-  }
+  // Always re-point the thumbnails: a re-read almost always means the markup
+  // changed, and a stale thumbnail is worse than none.
+  previewNow.setDeck(doc.url, doc.design);
+  previewNext.setDeck(doc.url, doc.design);
 
   renderPlanTotals();
   renderPosition();
@@ -329,6 +334,32 @@ function openProjector() {
   // that is worse than one keystroke on the night.
   projectorWindow.focus();
 }
+
+ui.reloadDeck.addEventListener('click', async () => {
+  if (!deckDoc) return;
+  const original = 'Reload deck';
+  ui.reloadDeck.disabled = true;
+  ui.reloadDeck.textContent = 'Reading';
+  try {
+    await loadDeck(deckDoc.url);
+  } catch (err) {
+    banner('Could not re-read the deck: ' + err.message);
+    ui.reloadDeck.textContent = original;
+    ui.reloadDeck.disabled = false;
+    return;
+  }
+  // The projector is still showing markup from before the edit. Only reload it
+  // if this panel opened it: a window someone opened with P is theirs, and
+  // reloading it out from under them mid-sentence would be rude.
+  if (projectorWindow && !projectorWindow.closed) {
+    try { projectorWindow.location.reload(); } catch (_) {}
+  }
+  ui.reloadDeck.textContent = 'Reloaded';
+  setTimeout(() => {
+    ui.reloadDeck.textContent = original;
+    ui.reloadDeck.disabled = false;
+  }, 1200);
+});
 
 ui.openProjector.addEventListener('click', openProjector);
 ui.prev.addEventListener('click', () => bus.send(navMessage('prev')));
