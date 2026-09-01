@@ -20,6 +20,7 @@ are plain ES modules and classic scripts; the tools are stdlib Python 3.
 ```bash
 python tools/serve.py examples/index.html        # serve + open the operator panel
 python tools/serve.py ~/Desktop/my-deck.html     # any deck, anywhere on disk
+python tools/serve.py --root ~/talks             # name none, pick one in the panel
 python tools/serve.py deck.html --port 9000 --no-open --deck-first --no-inject
 
 python tools/export_pdf.py  my-deck.html --size 1280x720
@@ -125,6 +126,13 @@ served HTML containing `<deck-stage>` that does not already load them. The check
 strips HTML comments first, so prose mentioning `deck-stage.js` does not count.
 A deck loading the legacy `presenter.js` is skipped entirely — injecting the
 agent on top would put two publishers on one channel.
+
+`/__deck/decks.json` lists the HTML files in the served tree and flags which
+contain a `<deck-stage>`, which is what `panel/picker.js` offers. Results are
+cached on (path, mtime, size) because a folder of decks with embedded images
+runs to megabytes each. A browser file picker cannot replace this: a file
+chosen through `<input type="file">` has no http address, and the two-window
+design needs both windows on one origin.
 
 Adding a new browser-side file means updating `FRAMEWORK_FILES` (single files)
 or `FRAMEWORK_DIRS` (whole directories) in `serve.py`. `framework_path()`
