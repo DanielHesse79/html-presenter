@@ -313,6 +313,65 @@
     border: 1px solid var(--hairline); border-radius: 3px; color: var(--ink);
   }
 
+
+  /* -- Deck picker ----------------------------------------------------- */
+  .picker {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px;
+    background: rgba(10, 18, 38, 0.88);
+  }
+  .picker[hidden] { display: none; }
+  .picker-card {
+    width: min(720px, 100%); max-height: 100%;
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--raised);
+    border: 1px solid var(--hairline); border-radius: 6px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  }
+  .picker-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; padding: 18px 22px 12px;
+  }
+  .picker-head h2 {
+    margin: 0; font-size: 17px; font-weight: 600; color: var(--ink);
+  }
+  #picker-root {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    direction: rtl; text-align: left; max-width: 60%;
+  }
+  #picker-status {
+    padding: 0 22px 12px; font-size: 12px; color: var(--muted);
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  #picker-list {
+    overflow-y: auto; min-height: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .pick {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+    width: 100%; text-align: left; text-transform: none; letter-spacing: normal;
+    padding: 13px 22px; border: 0; border-radius: 0;
+    border-bottom: 1px solid rgba(247, 243, 236, 0.05);
+    border-left: 3px solid transparent;
+    background: transparent; cursor: pointer;
+  }
+  .pick:hover:not([disabled]) {
+    background: rgba(216, 144, 31, 0.12); border-left-color: var(--accent);
+  }
+  .pick[disabled] { opacity: 0.4; cursor: default; }
+  .pick-title { font-size: 15px; color: var(--ink); }
+  .pick-meta { font-size: 11px; color: var(--muted); }
+  .picker-foot {
+    padding: 12px 22px; border-top: 1px solid var(--hairline);
+    display: flex; justify-content: flex-end;
+  }
+
+  #deck-title[data-pickable] { cursor: pointer; }
+  #deck-title[data-pickable]:hover { color: var(--ink); text-decoration: underline; }
+
   body[data-blackout] header { background: #3A1611; }
   body[data-blackout] #deck-title::after {
     content: " · projector black";
@@ -414,6 +473,20 @@
     </div>
     <button id="fullscreen" title="Fullscreen (F)">Full</button>
   </footer>
+
+  <div class="picker" id="picker" hidden>
+    <div class="picker-card">
+      <div class="picker-head">
+        <h2>What are we presenting?</h2>
+        <span id="picker-root"></span>
+      </div>
+      <div id="picker-status"></div>
+      <div id="picker-list"></div>
+      <div class="picker-foot">
+        <button id="picker-close" hidden>Close</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="panel/main.js"></script>
 </body>

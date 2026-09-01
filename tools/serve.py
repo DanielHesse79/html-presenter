@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import html as html_entities
 import http.server
+import json
 import re
 import socketserver
 import sys
@@ -46,6 +48,12 @@ FRAMEWORK_FILES = {
 FRAMEWORK_DIRS = ("core", "panel")
 
 PANEL_URL = MOUNT + "panel.html"
+DECKS_ENDPOINT = MOUNT + "decks.json"
+
+# How far into a file to look for <deck-stage>. A deck with embedded images
+# runs to megabytes, and the element can sit well past the CSS.
+DECK_SCAN_BYTES = 4 * 1024 * 1024
+DECK_LIST_LIMIT = 200
 
 CONTENT_TYPES = {".js": "text/javascript", ".html": "text/html", ".css": "text/css"}
 
@@ -121,6 +129,67 @@ def inject_framework(html: str) -> str:
     return html + block
 
 
+
+# Scanning a folder of multi-megabyte decks on every request would be wasteful,
+# and the answer only changes when a file does.
+_deck_cache = {}
+
+
+def describe_html(path: Path, root: Path) -> dict:
+    """Enough about one HTML file for the panel to offer or refuse it."""
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    cached = _deck_cache.get(key)
+    if cached is not None:
+        return cached
+
+    title = ""
+    is_deck = False
+    try:
+        head = path.read_text(encoding="utf-8", errors="replace")[:DECK_SCAN_BYTES]
+        is_deck = "<deck-stage" in head
+        m = re.search(r"<title[^>]*>(.*?)</title>", head, re.S | re.I)
+        if m:
+            title = html_entities.unescape(
+                re.sub(r"\s+", " ", m.group(1))).strip()[:120]
+    except OSError:
+        pass
+
+    info = {
+        "path": "/" + path.relative_to(root).as_posix(),
+        "name": path.name,
+        "title": title,
+        "isDeck": is_deck,
+        "size": stat.st_size,
+        "modified": int(stat.st_mtime),
+    }
+    _deck_cache[key] = info
+    return info
+
+
+def list_decks(root: Path) -> dict:
+    """Every HTML file in the served tree, decks first.
+
+    Non-decks are listed too rather than filtered out. A file that is missing
+    its <deck-stage> is exactly the file someone is about to wonder why they
+    cannot pick, and saying so beats leaving a gap in the list.
+    """
+    found = []
+    for depth in (root.glob("*.htm*"), root.glob("*/*.htm*")):
+        for p in depth:
+            if not p.is_file() or p.name.startswith("."):
+                continue
+            if p.name in FRAMEWORK_FILES:
+                continue
+            found.append(p)
+            if len(found) >= DECK_LIST_LIMIT:
+                break
+
+    items = [describe_html(p, root) for p in found]
+    items.sort(key=lambda d: (not d["isDeck"], d["name"].lower()))
+    return {"root": str(root), "decks": items, "truncated": len(found) >= DECK_LIST_LIMIT}
+
+
 def make_handler(root: Path, inject: bool):
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
@@ -144,6 +213,13 @@ def make_handler(root: Path, inject: bool):
 
         def do_GET(self):  # noqa: N802
             path = urllib.parse.urlparse(self.path).path
+
+            # What is there to present? Answered before the file mount so the
+            # name cannot collide with a framework file.
+            if path == DECKS_ENDPOINT:
+                body = json.dumps(list_decks(root)).encode("utf-8")
+                self._send_bytes(body, "application/json; charset=utf-8")
+                return
 
             # Framework files, wherever the deck itself lives.
             if path.startswith(MOUNT):
@@ -238,8 +314,10 @@ def main() -> int:
 
     base = "http://localhost:" + str(args.port)
     deck_url = base + "/" + (urllib.parse.quote(deck.as_posix()) if deck else "")
-    if deck is None or args.deck_first:
+    if deck is not None and args.deck_first:
         url = deck_url
+    elif deck is None:
+        url = base + PANEL_URL          # the panel will offer what it can find
     else:
         url = (base + PANEL_URL + "?deck="
                + urllib.parse.quote("/" + deck.as_posix(), safe=""))
@@ -261,7 +339,7 @@ def main() -> int:
     print("  framework : " + str(FRAMEWORK_DIR) + "  (mounted at " + MOUNT + ")")
     print("  open      : " + url)
     if deck is None:
-        print("  (no deck named and none guessed - pick one from the listing)")
+        print("  (no deck named - pick one in the panel)")
     else:
         print("  deck      : " + deck_url)
     print()

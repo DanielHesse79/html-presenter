@@ -25,6 +25,7 @@ import { createSession } from '../core/session.js';
 import { clock, magnitude } from '../core/format.js';
 import { createPreview } from './preview.js';
 import { createRundown } from './rundown.js';
+import { createPicker } from './picker.js';
 
 const TICK_MS = 250;
 const HELLO_MS = 1500;      // keep announcing until the deck answers
@@ -50,7 +51,7 @@ const ui = {
   pause: el('pause'), reset: el('reset'), blackout: el('blackout'),
   mixer: el('mixer'), mute: el('mute'), volume: el('volume'),
   volRead: el('vol-read'), audioLed: el('audio-led'),
-  fullscreen: el('fullscreen'),
+  fullscreen: el('fullscreen'), picker: el('picker'),
 };
 
 const params = new URLSearchParams(location.search);
@@ -90,10 +91,25 @@ if (!bus.ok) {
          'opening it as a file, then reload this panel.');
 }
 
+const picker = createPicker(ui.picker, {
+  // A reload rather than a swap in place: switching decks mid-talk is not a
+  // thing anyone does, and every deck's session is stored under its own key,
+  // so coming back to one restores its clock and its budgets anyway.
+  onPick: (path) => {
+    location.search = '?deck=' + encodeURIComponent(path)
+      + (CHANNEL === DEFAULT_CHANNEL ? '' : '&channel=' + encodeURIComponent(CHANNEL));
+  },
+});
+
+ui.title.addEventListener('click', () => {
+  if (ui.title.hasAttribute('data-pickable')) picker.show({ dismissable: !!deckDoc });
+});
+
 if (!deckParam) {
-  banner('No deck given. Start the panel with: python tools/serve.py my-deck.html');
-  ui.title.textContent = 'No deck';
+  ui.title.textContent = 'No deck chosen';
+  ui.title.setAttribute('data-pickable', '');
   ui.openProjector.disabled = true;
+  picker.show({ dismissable: false });
 } else {
   loadDeck(deckParam).catch((err) => {
     console.error('[panel] could not load the deck:', err);
@@ -107,8 +123,11 @@ async function loadDeck(url) {
   const first = !deckDoc;
   deckDoc = doc;
 
-  ui.title.textContent = doc.title || doc.url.split('/').pop();
+  ui.title.textContent = doc.title || decodeURIComponent(doc.url.split('/').pop());
+  ui.title.setAttribute('data-pickable', '');
+  ui.title.title = 'Choose a different deck';
   ui.total.textContent = String(doc.slides.length);
+  picker.close();
 
   session.setKey(doc.url);
   session.setSlideCount(doc.slides.length);
@@ -452,6 +471,11 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+
+  if (picker.isOpen) {
+    if (e.key === 'Escape' && deckDoc) picker.close();
+    return;
+  }
 
   switch (e.key) {
     case 'ArrowRight': case 'PageDown': case ' ':

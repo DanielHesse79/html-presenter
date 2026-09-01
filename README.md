@@ -25,6 +25,17 @@ project exists:
 python tools/serve.py ~/Desktop/my-deck.html
 ```
 
+Or name no deck at all, and pick one in the panel:
+
+```bash
+python tools/serve.py --root ~/talks
+```
+
+The picker lists every HTML file in the folder and says which ones are decks,
+so a file missing its `<deck-stage>` shows up greyed out with the reason rather
+than silently going missing. Click the deck's name in the panel header to get
+back to the list.
+
 ## The operator panel
 
 The laptop screen is the console. The projector shows nothing but slides.
