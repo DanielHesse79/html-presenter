@@ -70,7 +70,7 @@ let projectorWindow = null;
 const previewNow = createPreview(ui.previewNow);
 const previewNext = createPreview(ui.previewNext);
 const rundown = createRundown(ui.rows, {
-  onJump: (i) => bus.send(navMessage(null, i)),
+  onJump: (i) => drive(navMessage(null, i)),
   onBudget: (i, value) => {
     session.setBudgetMinutes(i, value);
     session.save();
@@ -195,8 +195,9 @@ function setLive(now) {
   } else {
     pushedOnConnect = false;
     if (bus.ok && deckParam) {
-      banner('No projector window is reporting in. Press Open projector, or ' +
-             'check that the deck window is still open.');
+      banner('No projector window yet. The panel works without one, so you ' +
+             'can rehearse from here. Press Open projector when you want the ' +
+             'slides on a screen.');
     }
   }
 }
@@ -299,6 +300,38 @@ setInterval(() => {
 
 // ── Controls ─────────────────────────────────────────────────────────────
 
+/**
+ * Navigate: tell the deck, and move here too.
+ *
+ * Moving locally as well is what makes the panel usable on its own. With no
+ * projector window open there is nothing on the channel to answer, and a panel
+ * whose arrow keys silently do nothing reads as broken. It also means you can
+ * rehearse a talk from the notes and the thumbnails alone, on a train, with no
+ * second screen anywhere.
+ *
+ * A connected deck's next state message is authoritative and corrects us if we
+ * guessed wrong, which costs nothing because it usually agrees.
+ */
+function drive(msg) {
+  bus.send(msg);
+  const total = deckDoc ? deckDoc.slides.length : 0;
+  if (!total) return;
+
+  let next = index;
+  if (typeof msg.index === 'number') next = msg.index;
+  else if (msg.dir === 'next') next = index + 1;
+  else if (msg.dir === 'prev') next = index - 1;
+  else if (msg.dir === 'first') next = 0;
+  else if (msg.dir === 'last') next = total - 1;
+
+  next = Math.max(0, Math.min(total - 1, next));
+  if (next === index) return;
+  index = next;
+  session.setIndex(index);
+  renderPosition();
+  rundown.scrollTo(index);
+}
+
 function pushMixer() {
   bus.send(volumeMessage(session.state.volume));
   bus.send(muteMessage(session.state.muted));
@@ -362,8 +395,8 @@ ui.reloadDeck.addEventListener('click', async () => {
 });
 
 ui.openProjector.addEventListener('click', openProjector);
-ui.prev.addEventListener('click', () => bus.send(navMessage('prev')));
-ui.next.addEventListener('click', () => bus.send(navMessage('next')));
+ui.prev.addEventListener('click', () => drive(navMessage('prev')));
+ui.next.addEventListener('click', () => drive(navMessage('next')));
 ui.pause.addEventListener('click', () => { session.togglePause(); renderTimer(); });
 ui.reset.addEventListener('click', () => { session.resetClock(); renderTimer(); });
 ui.blackout.addEventListener('click', () => setBlackout(!session.state.blackout));
@@ -422,13 +455,13 @@ document.addEventListener('keydown', (e) => {
 
   switch (e.key) {
     case 'ArrowRight': case 'PageDown': case ' ':
-      e.preventDefault(); bus.send(navMessage('next')); break;
+      e.preventDefault(); drive(navMessage('next')); break;
     case 'ArrowLeft': case 'PageUp':
-      e.preventDefault(); bus.send(navMessage('prev')); break;
+      e.preventDefault(); drive(navMessage('prev')); break;
     case 'Home':
-      e.preventDefault(); bus.send(navMessage('first')); break;
+      e.preventDefault(); drive(navMessage('first')); break;
     case 'End':
-      e.preventDefault(); bus.send(navMessage('last')); break;
+      e.preventDefault(); drive(navMessage('last')); break;
     case 'p': case 'P':
       e.preventDefault(); session.togglePause(); renderTimer(); break;
     case 'b': case 'B':
