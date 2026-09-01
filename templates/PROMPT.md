@@ -64,6 +64,26 @@ Fractions are fine. The total must match the talk length I gave you. I can
 retype any of these in the panel on the night, so treat them as a considered
 opening bid rather than a guess.
 
+## Appendix slides
+
+Only if I ask for them. Backup material for questions I do not want to plan
+for: the chart behind a claim, a methods slide, the detailed numbers.
+
+```html
+<section data-label="Backup: cost model" data-appendix>
+```
+
+Put them last, after the talk ends. What I rely on:
+
+- Arrow keys step over them, so they never surface by accident mid-talk. I
+  reach one from the rundown in my panel, or by pressing `A`.
+- They carry no time budget. Give each one `0` in `#deck-plan`. The arrays
+  still have to be the same length as the slides.
+- Label them so I can find one while a room waits. A `Backup: ` prefix reads
+  well, because my panel lists them in their own group.
+- Write notes for them too. A question is exactly when I need the note.
+- They do appear in the PDF export, at the end. That is deliberate.
+
 ## Design
 
 - Design at exactly 1920×1080. It gets scaled to whatever screen it lands on.
@@ -129,6 +149,10 @@ Any `<video>` in a slide follows the same master fader.
 
 - Confirm that the slide count, the `#speaker-notes` count and the
   `#deck-plan` count are all the same number, and tell me what that number is.
+  Appendix slides count too.
+- If I asked for appendix slides, confirm they are last in the file, every
+  one carries `data-appendix`, and every one is `0` in the plan. Tell me the
+  talk's slide count separately from the appendix count.
 - Tell me the plan total, and flag it if it does not match the talk length I
   asked for.
 - Tell me if any `data-label` ran past ~25 characters, and what you shortened

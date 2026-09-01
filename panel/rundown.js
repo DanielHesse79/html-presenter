@@ -8,6 +8,11 @@
  * Rows are built once and then updated in place. Rebuilding them on every tick
  * would blow away the caret of whichever budget field is being typed into,
  * which is exactly the field the operator is most likely to be using.
+ *
+ * Slides marked `data-appendix` are listed below a divider and get no budget
+ * field at all. They are not part of the plan, and an editable minute figure
+ * next to them would suggest they were. `rows` stays indexed by absolute
+ * slide index so the highlight and the scroll still address one list.
  */
 
 import { clock, minutes } from '../core/format.js';
@@ -18,14 +23,15 @@ export function createRundown(mount, { onJump, onBudget }) {
 
   const lastBudget = (i) => minutes(budgets[i] || 0);
 
-  function buildRow(slide) {
+  function buildRow(slide, number) {
     const row = document.createElement('div');
     row.className = 'row';
     row.dataset.index = String(slide.index);
+    if (slide.isAppendix) row.setAttribute('data-appendix', '');
 
     const n = document.createElement('span');
     n.className = 'n mono';
-    n.textContent = String(slide.index + 1).padStart(2, '0');
+    n.textContent = number;
 
     const label = document.createElement('span');
     label.className = 'label';
@@ -38,15 +44,25 @@ export function createRundown(mount, { onJump, onBudget }) {
       label.appendChild(snd);
     }
 
+    const actual = document.createElement('span');
+    actual.className = 'actual mono';
+
+    // No budget field on backup material: it carries no plan time, and an
+    // editable figure beside it would imply it did.
+    if (slide.isAppendix) {
+      const spacer = document.createElement('span');
+      spacer.className = 'nobudget';
+      row.append(n, label, spacer, actual);
+      row.addEventListener('click', () => onJump(slide.index));
+      return { row, input: null, actual };
+    }
+
     const input = document.createElement('input');
     input.type = 'number';
     input.min = '0';
     input.step = '0.25';
     input.title = 'Minutes budgeted for this slide';
     input.setAttribute('aria-label', 'Minutes for slide ' + (slide.index + 1));
-
-    const actual = document.createElement('span');
-    actual.className = 'actual mono';
 
     row.append(n, label, input, actual);
 
@@ -71,8 +87,21 @@ export function createRundown(mount, { onJump, onBudget }) {
   return {
     build(slides) {
       mount.textContent = '';
+      let main = 0;
+      let appx = 0;
+      let divided = false;
       rows = slides.map((slide) => {
-        const parts = buildRow(slide);
+        if (slide.isAppendix && !divided) {
+          divided = true;
+          const head = document.createElement('div');
+          head.className = 'group';
+          head.textContent = 'Appendix \u00b7 off the running order';
+          mount.appendChild(head);
+        }
+        const number = slide.isAppendix
+          ? 'A' + (++appx)
+          : String(++main).padStart(2, '0');
+        const parts = buildRow(slide, number);
         mount.appendChild(parts.row);
         return parts;
       });
@@ -82,7 +111,7 @@ export function createRundown(mount, { onJump, onBudget }) {
     setBudgets(list) {
       budgets = list.slice();
       rows.forEach((r, i) => {
-        if (document.activeElement === r.input) return;
+        if (!r.input || document.activeElement === r.input) return;
         const value = minutes(budgets[i] || 0);
         if (r.input.value !== value) r.input.value = value;
       });

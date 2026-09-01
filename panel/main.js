@@ -53,6 +53,7 @@ const ui = {
   pause: el('pause'), reset: el('reset'), blackout: el('blackout'),
   mixer: el('mixer'), mute: el('mute'), volume: el('volume'),
   volRead: el('vol-read'), audioLed: el('audio-led'),
+  appendixReturn: el('appendix-return'), returnTo: el('return-to'),
   fullscreen: el('fullscreen'), picker: el('picker'),
 };
 
@@ -129,11 +130,12 @@ async function loadDeck(url) {
   ui.title.textContent = doc.title || decodeURIComponent(doc.url.split('/').pop());
   ui.title.setAttribute('data-pickable', '');
   ui.title.title = 'Choose a different deck';
-  ui.total.textContent = String(doc.slides.length);
+  ui.total.textContent = String(bandCount(false) || doc.slides.length);
   picker.close();
 
   session.setKey(doc.url);
   session.setSlideCount(doc.slides.length);
+  session.setAppendix(doc.slides.map((s) => s.isAppendix));
   session.setAuthoredPlan(doc.plan);
   if (first) {
     // Budgets typed on a previous run beat the file; the file only fills in
@@ -212,6 +214,7 @@ function setLive(now) {
   if (now === live) return;
   live = now;
   ui.dot.toggleAttribute('data-live', now);
+  syncMixer();
   if (now) {
     clearBanner();
   } else {
@@ -229,10 +232,58 @@ function clearBanner() { ui.banner.hidden = true; }
 
 // ── Rendering ────────────────────────────────────────────────────────────
 
+// ── The appendix band ────────────────────────────────────────────────────
+// Mirrors deck-stage's own _step()/_positionLabel(). Duplicated on purpose,
+// for the same reason the slide labels are: the panel has to know the shape
+// of the deck before a projector window exists to ask.
+
+const slideAt = (i) => (deckDoc ? deckDoc.slides[i] : null) || null;
+const isAppendix = (i) => !!(slideAt(i) && slideAt(i).isAppendix);
+const bandCount = (appendix) => (deckDoc
+  ? deckDoc.slides.filter((s) => !!s.isAppendix === appendix).length : 0);
+
+/** "12" in the running order, "A2" out in the appendix. */
+function positionLabel(i) {
+  if (!slideAt(i)) return '\u2014';
+  const want = isAppendix(i);
+  let n = 0;
+  for (let k = 0; k <= i; k++) if (isAppendix(k) === want) n++;
+  return want ? 'A' + n : String(n);
+}
+
+/** Step within the current band, stopping at its edge rather than crossing. */
+function step(from, dir) {
+  const slides = deckDoc ? deckDoc.slides : [];
+  const here = isAppendix(from);
+  let i = from + dir;
+  while (i >= 0 && i < slides.length && isAppendix(i) !== here) i += dir;
+  return (i >= 0 && i < slides.length) ? i : from;
+}
+
+function lastMain() {
+  const slides = deckDoc ? deckDoc.slides : [];
+  for (let i = slides.length - 1; i >= 0; i--) if (!slides[i].isAppendix) return i;
+  return 0;
+}
+
 function renderPosition() {
   const slides = deckDoc ? deckDoc.slides : [];
   const notes = deckDoc ? deckDoc.notes : [];
-  ui.cur.textContent = slides.length ? String(index + 1) : '—';
+  const away = isAppendix(index);
+  ui.cur.textContent = slides.length ? positionLabel(index) : '\u2014';
+  ui.total.textContent = slides.length
+    ? String(bandCount(away) || slides.length)
+    : '\u2014';
+  document.body.toggleAttribute('data-appendix', away);
+
+  // The way back. Shown only when it is the thing you need, and it names
+  // the slide so you can see where the talk resumes before committing.
+  ui.appendixReturn.hidden = !away;
+  if (away) {
+    const back = slides[session.returnIndex];
+    ui.returnTo.textContent = positionLabel(session.returnIndex)
+      + (back ? ' \u00b7 ' + back.label : '');
+  }
 
   const slide = slides[index];
   ui.label.textContent = slide ? slide.label : '';
@@ -241,19 +292,22 @@ function renderPosition() {
   ui.note.textContent = note || '(no note for this slide)';
   ui.note.classList.toggle('empty', !note);
 
-  const upcoming = notes[index + 1];
-  if (upcoming && index + 1 < slides.length) {
+  // "Next" follows the same stepping the arrows do, so the last slide of
+  // the talk does not advertise the first backup slide as what comes next.
+  const ahead = step(index, 1);
+  const upcoming = ahead !== index ? notes[ahead] : null;
+  if (upcoming) {
     ui.nextText.textContent = upcoming;
-    ui.nextLabel.textContent = slides[index + 1]
-      ? slides[index + 1].label
-      : 'slide ' + (index + 2);
+    ui.nextLabel.textContent = slides[ahead]
+      ? slides[ahead].label
+      : 'slide ' + (ahead + 1);
     ui.nextNote.hidden = false;
   } else {
     ui.nextNote.hidden = true;
   }
 
   previewNow.show(index, slides.length);
-  previewNext.show(index + 1, slides.length);
+  previewNext.show(ahead !== index ? ahead : slides.length, slides.length);
 }
 
 function renderPlanTotals() {
@@ -300,7 +354,16 @@ function renderTimer() {
 
 function syncMixer() {
   const pct = Math.round(session.state.volume * 100);
-  ui.volRead.textContent = session.state.muted ? 'off' : String(pct);
+  // With no projector window there is nothing to hear. The preview
+  // thumbnails are deliberately muted, so the fader moves a level nobody
+  // is listening to, and a confident "100" there reads as a fault in the
+  // sound rather than as a window that was never opened.
+  ui.volRead.textContent = !live ? 'no out'
+    : (session.state.muted ? 'off' : String(pct));
+  ui.mixer.title = !live
+    ? 'Nothing is playing audio yet. Open the projector window to hear the deck.'
+    : 'Master level for the projector window';
+  ui.mixer.toggleAttribute('data-noout', !live);
   ui.mixer.toggleAttribute('data-muted', session.state.muted);
   ui.mute.toggleAttribute('data-on', session.state.muted);
   ui.mute.textContent = session.state.muted ? 'Unmute' : 'Mute';
@@ -341,10 +404,10 @@ function drive(msg) {
 
   let next = index;
   if (typeof msg.index === 'number') next = msg.index;
-  else if (msg.dir === 'next') next = index + 1;
-  else if (msg.dir === 'prev') next = index - 1;
+  else if (msg.dir === 'next') next = step(index, 1);
+  else if (msg.dir === 'prev') next = step(index, -1);
   else if (msg.dir === 'first') next = 0;
-  else if (msg.dir === 'last') next = total - 1;
+  else if (msg.dir === 'last') next = lastMain();
 
   next = Math.max(0, Math.min(total - 1, next));
   if (next === index) return;
@@ -470,6 +533,18 @@ ui.reloadDeck.addEventListener('click', async () => {
 });
 
 ui.openProjector.addEventListener('click', openProjector);
+/** Into the backup material, or back out of it. */
+function toggleAppendix() {
+  if (isAppendix(index)) {
+    drive(navMessage(null, session.returnIndex));
+    return;
+  }
+  const first = (deckDoc ? deckDoc.slides : []).findIndex((s) => s.isAppendix);
+  if (first >= 0) drive(navMessage(null, first));
+}
+
+ui.appendixReturn.addEventListener('click',
+  () => drive(navMessage(null, session.returnIndex)));
 ui.prev.addEventListener('click', () => drive(navMessage('prev')));
 ui.next.addEventListener('click', () => drive(navMessage('next')));
 ui.pause.addEventListener('click', () => { session.togglePause(); renderTimer(); });
@@ -552,6 +627,14 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault(); session.resetClock(); renderTimer(); break;
     case 'f': case 'F':
       e.preventDefault(); toggleFullscreen(); break;
+    case 'a': case 'A':
+      e.preventDefault(); toggleAppendix(); break;
+    case 'Escape':
+      if (isAppendix(index)) {
+        e.preventDefault();
+        drive(navMessage(null, session.returnIndex));
+      }
+      break;
     default:
       break;
   }

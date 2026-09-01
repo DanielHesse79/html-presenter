@@ -49,6 +49,10 @@ A deck is one HTML file that does not know this project exists:
 order, same length. `#deck-plan` is minutes per slide and is optional. Slides
 are the direct element children of `<deck-stage>`.
 
+A slide marked `data-appendix` is in the file but out of the running order:
+backup material for questions. Arrows step over it, it carries no budget, and
+the parallel arrays still hold an entry for it (`0` in the plan).
+
 `templates/PROMPT.md` is the paste-able spec that generates conforming decks;
 keep it in sync with any change to this contract.
 
@@ -162,6 +166,38 @@ the deck author's own CSS still applies. Key decisions:
 `slidechange` and `blackoutchange` are composed, bubbling CustomEvents. They are
 the integration point — hang new features off them rather than reaching into
 internals.
+
+### The appendix band
+
+`data-appendix` splits the slides into two bands: the talk, and the backup
+material you reach for when a question goes somewhere the talk does not.
+`_step()` in `deck-stage.js` is the whole mechanism. It walks in the
+requested direction until it finds a slide in the *same* band as the current
+one, and stops at the edge rather than crossing.
+
+Two consequences worth keeping:
+
+- On a deck that marks nothing, `_step()` reduces to `index ± 1` and every
+  count is unchanged. That identity is what makes the feature safe to carry
+  into a talk, and it is worth preserving in any change here.
+- Falling out of the appendix into the middle of the running order, in front
+  of a room, is worse than a key that does nothing. `Escape` (or **Back** in
+  the panel) is the way out, and it returns to where the question landed.
+
+The session keeps the band out of the plan with one rule: **appendix slides
+carry no budget**. `cumulativeSeconds()` and `planTotalSeconds()` already sum
+budgets, so zeroing these excludes them from every total without a second
+code path, and `setBudgetMinutes()` refuses to set one.
+
+While you are on an appendix slide, `driftSeconds()` measures against the
+slide the talk was left on. The clock runs but the plan stands still, so the
+figure climbs in real time: it is telling you what the question is costing.
+Coming back **resumes** that slide rather than restarting it (`visitMs` is
+restored from its accrued actual), because otherwise the pace lurches at the
+exact moment you are trying to pick the thread back up.
+
+`panel/main.js` re-derives the bands from the deck document rather than
+asking a deck window. Same duplication as the slide labels, same reason.
 
 ### Thumbnails and the two preview guards
 

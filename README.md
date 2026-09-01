@@ -93,6 +93,22 @@ The panel's master volume scales every clip and every `<video>` in the deck,
 without disturbing the levels you authored per clip. The lamp beside the fader
 lights while a clip is sounding.
 
+### Appendix slides
+
+A slide marked `data-appendix` sits in the file but outside the running
+order: the backup you reach for when a question goes somewhere the talk
+does not. Arrow keys step over it, so it never surfaces by accident. The
+panel lists them in their own group at the foot of the rundown; click one,
+or press `A` in the deck window.
+
+While you are there the panel shows **Back to 12 · Whatever**, and the pace
+figure keeps climbing so you can see what the question is costing. Pressing
+Back (or `Escape` in the deck window) resumes the talk where it stopped,
+without restarting that slide's budget.
+
+Appendix slides carry no time budget and do not move the plan totals. They
+are included in the PDF export, at the end.
+
 ## Presenting
 
 | Key | In the deck | In the operator panel |
@@ -104,6 +120,8 @@ lights while a clip is sounding.
 | `B` | black out the projector | black out the projector |
 | `R` | back to slide 1 | reset the clock and the measured run |
 | `P` | open the operator panel | pause / resume the clock |
+| `A` | appendix, and back again | appendix, and back again |
+| `Esc` | back to the talk | back to the talk |
 | `M` | — | mute |
 | `F` | — | fullscreen |
 
@@ -150,6 +168,9 @@ Slides are the direct element children of `<deck-stage>`.
   lets you type budgets in with or without it.
 - **`data-sound="clip.mp3"`** on a slide plays a clip on arrival and stops it
   on the way out. `data-sound-loop` and `data-sound-volume="0.6"` are supported.
+- **`data-appendix`** keeps a slide out of the running order. Put these last,
+  give them `0` in `#deck-plan`, and keep the arrays the same length as the
+  slides.
 
 Slides are hidden, never unmounted, so videos, iframes and form state survive
 navigation.

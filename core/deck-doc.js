@@ -22,7 +22,7 @@ const DEFAULT_DESIGN = { width: 1920, height: 1080 };
  * @typedef {{
  *   url: string, title: string,
  *   notes: string[], plan: number[] | null,
- *   slides: {index:number,label:string,hasSound:boolean}[],
+ *   slides: {index:number,label:string,hasSound:boolean,isAppendix:boolean}[],
  *   design: {width:number,height:number},
  * }} DeckDoc
  */
@@ -93,6 +93,7 @@ function readSlides(doc) {
     index: i,
     label: deriveLabel(el),
     hasSound: el.hasAttribute('data-sound'),
+    isAppendix: el.hasAttribute('data-appendix'),
   }));
 }
 

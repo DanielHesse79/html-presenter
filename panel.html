@@ -377,6 +377,28 @@
     content: " · projector black";
     color: var(--bad); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px;
   }
+
+/* The appendix: slides that are in the file but out of the running order.
+   Set apart rather than hidden, because the whole point is to find one fast
+   while a room waits. */
+.rows .group {
+  margin-top: 8px;
+  padding: 14px 14px 6px;
+  border-top: 1px solid var(--hairline);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.row[data-appendix] .label { color: var(--ink-soft); }
+.row[data-appendix] .n { color: var(--accent); opacity: 0.65; }
+.row[data-appendix][data-current] .n { opacity: 1; }
+#appendix-return { border-color: var(--accent); color: var(--accent); }
+body[data-appendix] .count b { color: var(--accent); }
+
+/* A fader with nothing on the other end says so. */
+.mixer[data-noout] { opacity: 0.6; }
+.mixer[data-noout] #vol-read { font-size: 11px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -389,6 +411,8 @@
     </div>
     <div class="head-right">
       <span class="count mono"><b id="cur">&mdash;</b> / <span id="total">&mdash;</span></span>
+      <button id="appendix-return" hidden
+              title="Back to the running order, where the question interrupted it">&#8592; Back to <span id="return-to"></span></button>
       <button id="reload-deck" title="Re-read the deck file, refresh the notes and thumbnails, and reload the projector">Reload deck</button>
       <button id="open-projector" class="primary">Open projector</button>
     </div>
@@ -469,7 +493,8 @@
     <div class="spacer"></div>
     <div class="hint mono">
       <kbd>&#8592;</kbd><kbd>&#8594;</kbd> slide
-      <kbd>P</kbd> pause <kbd>B</kbd> black <kbd>M</kbd> mute <kbd>R</kbd> reset
+      <kbd>P</kbd> pause <kbd>B</kbd> black <kbd>M</kbd> mute
+      <kbd>A</kbd> appendix <kbd>R</kbd> reset
     </div>
     <button id="fullscreen" title="Fullscreen (F)">Full</button>
   </footer>

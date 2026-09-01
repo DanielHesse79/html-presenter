@@ -26,6 +26,8 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     key,
     slideCount,
     budgets: [],        // minutes per slide, operator-editable
+    appendix: [],       // parallel: slide is backup material, not the talk
+    returnIndex: 0,     // last place in the running order, for coming back
     authored: null,     // the deck's own plan, kept so it can be restored
     elapsedMs: 0,
     actualsMs: [],      // accrued per slide, across revisits (rehearsal)
@@ -53,6 +55,25 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     state.slideCount = n;
     state.budgets = fitLength(state.budgets, n);
     state.actualsMs = fitLength(state.actualsMs, n);
+    state.appendix = fitLength(state.appendix, n, false);
+    dirty = true;
+  }
+
+  const isAppendix = (i) => !!state.appendix[i];
+
+  /**
+   * Which slides sit outside the running order.
+   *
+   * Appendix slides carry no budget, and that single rule is what keeps
+   * them out of the arithmetic: cumulativeSeconds() and planTotalSeconds()
+   * already sum budgets, so zeroing these means the plan simply does not
+   * see them. Backup material you may never show must not move the totals
+   * or the pace of the talk you are actually giving.
+   */
+  function setAppendix(flags) {
+    state.appendix = fitLength(
+      flags ? flags.map(Boolean) : [], state.slideCount, false);
+    state.budgets = state.budgets.map((m, i) => (state.appendix[i] ? 0 : m));
     dirty = true;
   }
 
@@ -63,12 +84,13 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
 
   /** Replace the working budgets with the deck's authored plan. */
   function restoreAuthoredPlan() {
-    state.budgets = fitLength(state.authored, state.slideCount);
+    state.budgets = fitLength(state.authored, state.slideCount)
+      .map((m, i) => (isAppendix(i) ? 0 : m));
     dirty = true;
   }
 
   function setBudgetMinutes(i, minutes) {
-    if (i < 0 || i >= state.slideCount) return;
+    if (i < 0 || i >= state.slideCount || isAppendix(i)) return;
     const m = Number(minutes);
     state.budgets[i] = Number.isFinite(m)
       ? Math.min(MAX_BUDGET_MINUTES, Math.max(0, m))
@@ -110,8 +132,16 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
 
   function setIndex(i) {
     if (i === state.index) return;
+    // Coming back from the appendix resumes the slide rather than
+    // restarting it. Without this the pace lurches the moment you return:
+    // the minutes already spent on that slide would stop counting against
+    // its budget, and a figure that jumps is the one thing the clamp in
+    // driftSeconds() exists to prevent.
+    const resuming = isAppendix(state.index) && i === state.returnIndex;
     state.index = i;
-    state.visitMs = 0;      // pace measures this visit, not the running total
+    if (!isAppendix(i)) state.returnIndex = i;
+    // Otherwise pace measures this visit, not the running total.
+    state.visitMs = resuming ? (state.actualsMs[i] || 0) : 0;
     dirty = true;
   }
 
@@ -140,9 +170,17 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
    * the corner of your eye mid-sentence.
    */
   function driftSeconds() {
-    const i = state.index;
+    // Out in the appendix, measure against the slide the talk was left on.
+    // The clock keeps running while the plan stands still, so the number
+    // climbs in real time: that is the point. It is telling you what this
+    // question is costing, and it is the figure you will be facing when
+    // you come back.
+    const away = isAppendix(state.index);
+    const i = away ? state.returnIndex : state.index;
     if (!hasPlan() || i < 0 || i >= state.slideCount) return 0;
-    const spent = state.visitMs / 1000;
+    const spent = away
+      ? (state.actualsMs[i] || 0) / 1000
+      : state.visitMs / 1000;
     const owed = cumulativeSeconds(i) + Math.min(spent, budgetSeconds(i));
     return state.elapsedMs / 1000 - owed;
   }
@@ -155,9 +193,11 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
 
   /** Seconds of plan left after the current slide's budget is used up. */
   function remainingInPlanSeconds() {
-    const i = state.index;
+    const away = isAppendix(state.index);
+    const i = away ? state.returnIndex : state.index;
     if (!hasPlan()) return 0;
-    const spent = Math.min(state.visitMs / 1000, budgetSeconds(i));
+    const raw = away ? (state.actualsMs[i] || 0) / 1000 : state.visitMs / 1000;
+    const spent = Math.min(raw, budgetSeconds(i));
     return Math.max(0, planTotalSeconds() - cumulativeSeconds(i) - spent);
   }
 
@@ -168,9 +208,13 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
    * Offered for the operator to copy; nothing writes it back to the deck.
    */
   function planFromActuals() {
+    // Parallel to every slide, appendix included, because #deck-plan has to
+    // stay the same length as the slides. Backup material contributes 0.
     return state.actualsMs
       .slice(0, state.slideCount)
-      .map((ms) => Math.max(0.25, Math.round((ms / 1000 / 60) * 4) / 4));
+      .map((ms, i) => (isAppendix(i)
+        ? 0
+        : Math.max(0.25, Math.round((ms / 1000 / 60) * 4) / 4)));
   }
 
   const hasRecording = () => state.actualsMs.some((ms) => ms > 1000);
@@ -200,6 +244,7 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
         elapsedMs: state.elapsedMs,
         actualsMs: state.actualsMs,
         paused: state.paused,
+        returnIndex: state.returnIndex,
         volume: state.volume,
         muted: state.muted,
       }));
@@ -220,6 +265,7 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     state.elapsedMs = Number(saved.elapsedMs) || 0;
     state.actualsMs = fitLength(saved.actualsMs, state.slideCount);
     state.paused = !!saved.paused;
+    state.returnIndex = Number(saved.returnIndex) || 0;
     setVolume(saved.volume == null ? 1 : saved.volume);
     state.muted = !!saved.muted;
     lastTickAt = Date.now();
@@ -238,7 +284,7 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
 
   return {
     state,
-    setKey, setSlideCount, setAuthoredPlan, restoreAuthoredPlan,
+    setKey, setSlideCount, setAuthoredPlan, restoreAuthoredPlan, setAppendix,
     setBudgetMinutes, budgetSeconds, planTotalSeconds, cumulativeSeconds, hasPlan,
     tick, setIndex, pause, resume, togglePause, resetClock,
     driftSeconds, pace, remainingInPlanSeconds,
@@ -248,5 +294,8 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     get elapsedSeconds() { return state.elapsedMs / 1000; },
     get visitSeconds() { return state.visitMs / 1000; },
     actualSeconds(i) { return (state.actualsMs[i] || 0) / 1000; },
+    isAppendix,
+    get inAppendix() { return isAppendix(state.index); },
+    get returnIndex() { return state.returnIndex; },
   };
 }

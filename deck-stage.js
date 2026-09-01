@@ -295,6 +295,8 @@
       this._index = 0;
       this._blackout = false;
       this._slides = [];
+      this._appendix = [];     // parallel to _slides: out of the flow?
+      this._returnIndex = 0;   // the running order's place, for coming back
       this._notes = [];
       this._hideTimer = null;
       this._mouseIdleTimer = null;
@@ -396,8 +398,8 @@
         <button class="btn reset" type="button" aria-label="Reset to first slide" title="Reset (R)">Reset<span class="kbd">R</span></button>
       `;
 
-      overlay.querySelector('.prev').addEventListener('click', () => this._go(this._index - 1, 'click'));
-      overlay.querySelector('.next').addEventListener('click', () => this._go(this._index + 1, 'click'));
+      overlay.querySelector('.prev').addEventListener('click', () => this._go(this._step(-1), 'click'));
+      overlay.querySelector('.next').addEventListener('click', () => this._go(this._step(1), 'click'));
       overlay.querySelector('.reset').addEventListener('click', () => this._go(0, 'click'));
 
       const blackout = document.createElement('div');
@@ -447,6 +449,14 @@
         return tag !== 'TEMPLATE' && tag !== 'SCRIPT' && tag !== 'STYLE';
       });
 
+      // Slides marked `data-appendix` sit in the document but outside the
+      // running order: the backup material you reach for when a question
+      // goes somewhere the talk does not. Arrows step over them.
+      //
+      // On a deck that marks nothing this is all inert, and _step() below
+      // reduces to index +/- 1, exactly what it was before.
+      this._appendix = this._slides.map((el) => el.hasAttribute('data-appendix'));
+
       this._slides.forEach((slide, i) => {
         const n = i + 1;
         // Determine a label for comment flow: prefer explicit data-label,
@@ -474,7 +484,9 @@
         slide.setAttribute('data-deck-slide', String(i));
       });
 
-      if (this._totalEl) this._totalEl.textContent = String(this._slides.length || 1);
+      if (this._totalEl) {
+        this._totalEl.textContent = String(this._mainCount() || this._slides.length || 1);
+      }
       if (this._index >= this._slides.length) this._index = Math.max(0, this._slides.length - 1);
     }
 
@@ -513,7 +525,12 @@
         if (i === curr) s.setAttribute('data-deck-active', '');
         else s.removeAttribute('data-deck-active');
       });
-      if (this._countEl) this._countEl.textContent = String(curr + 1);
+      if (this._countEl) this._countEl.textContent = this._positionLabel(curr);
+      if (this._totalEl) {
+        this._totalEl.textContent = String(this._appendix[curr]
+          ? this._appendixCount()
+          : (this._mainCount() || 1));
+      }
 
       if (broadcast) {
         // (1) Legacy: host-window postMessage for speaker-notes renderers.
@@ -531,6 +548,11 @@
           slide: this._slides[curr] || null,
           previousSlide: prev >= 0 ? (this._slides[prev] || null) : null,
           reason: reason, // 'init' | 'keyboard' | 'click' | 'tap' | 'api'
+          // Additive: `total` still counts every slide, for the legacy
+          // presenter view that reads it.
+          appendix: !!this._appendix[curr],
+          mainTotal: this._mainCount(),
+          returnIndex: this._returnIndex,
         };
         this.dispatchEvent(new CustomEvent('slidechange', {
           detail,
@@ -576,12 +598,12 @@
 
     _onTapBack(e) {
       e.preventDefault();
-      this._go(this._index - 1, 'tap');
+      this._go(this._step(-1), 'tap');
     }
 
     _onTapForward(e) {
       e.preventDefault();
-      this._go(this._index + 1, 'tap');
+      this._go(this._step(1), 'tap');
     }
 
     _onKey(e) {
@@ -594,13 +616,18 @@
       let handled = true;
 
       if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Spacebar') {
-        this._go(this._index + 1, 'keyboard');
+        this._go(this._step(1), 'keyboard');
       } else if (key === 'ArrowLeft' || key === 'PageUp') {
-        this._go(this._index - 1, 'keyboard');
+        this._go(this._step(-1), 'keyboard');
       } else if (key === 'Home') {
         this._go(0, 'keyboard');
       } else if (key === 'End') {
-        this._go(this._slides.length - 1, 'keyboard');
+        this._go(this._lastMain(), 'keyboard');
+      } else if (key === 'a' || key === 'A') {
+        this.toggleAppendix();
+      } else if (key === 'Escape') {
+        if (this.inAppendix) this.returnFromAppendix();
+        else handled = false;
       } else if (key === 'r' || key === 'R') {
         this._go(0, 'keyboard');
       } else if (key === 'b' || key === 'B') {
@@ -627,7 +654,47 @@
         return;
       }
       this._index = clamped;
+      // The most recent slide in the running order, so a detour into the
+      // appendix always knows where the talk was left.
+      if (!this._appendix[clamped]) this._returnIndex = clamped;
       this._applyIndex({ showOverlay: true, broadcast: true, reason });
+    }
+
+    // -- Appendix ------------------------------------------------------------
+
+    _mainCount() { return this._appendix.filter((a) => !a).length; }
+    _appendixCount() { return this._appendix.filter((a) => a).length; }
+
+    _lastMain() {
+      for (let i = this._slides.length - 1; i >= 0; i--) {
+        if (!this._appendix[i]) return i;
+      }
+      return 0;
+    }
+
+    /**
+     * The next index in the same band as the current slide.
+     *
+     * Stepping stays inside the running order, or inside the appendix, and
+     * stops at the edge rather than crossing: falling out of the backup
+     * material into the middle of the talk, in front of a room, is worse
+     * than a key that does nothing. Escape is the way back.
+     */
+    _step(dir) {
+      const here = !!this._appendix[this._index];
+      let i = this._index + dir;
+      while (i >= 0 && i < this._slides.length && !!this._appendix[i] !== here) {
+        i += dir;
+      }
+      return (i >= 0 && i < this._slides.length) ? i : this._index;
+    }
+
+    /** "12" in the running order, "A2" out in the appendix. */
+    _positionLabel(i) {
+      const want = !!this._appendix[i];
+      let n = 0;
+      for (let k = 0; k <= i; k++) if (!!this._appendix[k] === want) n++;
+      return want ? 'A' + n : String(n);
     }
 
     // Public API ------------------------------------------------------------
@@ -656,9 +723,31 @@
     get length() { return this._slides.length; }
     /** Programmatically navigate. */
     goTo(i) { this._go(i, 'api'); }
-    next() { this._go(this._index + 1, 'api'); }
-    prev() { this._go(this._index - 1, 'api'); }
+    next() { this._go(this._step(1), 'api'); }
+    prev() { this._go(this._step(-1), 'api'); }
     reset() { this._go(0, 'api'); }
+
+    /** True while showing a slide marked `data-appendix`. */
+    get inAppendix() { return !!this._appendix[this._index]; }
+    /** Absolute indices of the appendix slides, in document order. */
+    get appendixIndices() {
+      const out = [];
+      this._appendix.forEach((a, i) => { if (a) out.push(i); });
+      return out;
+    }
+    /** Where returnFromAppendix() would land. */
+    get returnIndex() { return this._returnIndex; }
+    /** Jump to the first appendix slide, if this deck has one. */
+    toAppendix() {
+      const first = this._appendix.indexOf(true);
+      if (first >= 0) this._go(first, 'api');
+    }
+    /** Back to the running order, at the slide the detour started from. */
+    returnFromAppendix() { this._go(this._returnIndex, 'api'); }
+    toggleAppendix() {
+      if (this.inAppendix) this.returnFromAppendix();
+      else this.toAppendix();
+    }
   }
 
   if (!customElements.get('deck-stage')) {
