@@ -396,6 +396,12 @@
 #appendix-return { border-color: var(--accent); color: var(--accent); }
 body[data-appendix] .count b { color: var(--accent); }
 
+/* Off the deck: the clock still runs, so the readout must not look
+   paused. Amber, not grey. */
+.badge.away { background: var(--accent); color: var(--bg); font-weight: 600; }
+body[data-away] .big { color: var(--accent); }
+#cutaway[data-on] { border-color: var(--accent); color: var(--accent); }
+
 /* A fader with nothing on the other end says so. */
 .mixer[data-noout] { opacity: 0.6; }
 .mixer[data-noout] #vol-read { font-size: 11px; color: var(--muted); }
@@ -438,6 +444,7 @@ body[data-appendix] .count b { color: var(--accent); }
           <span class="mono" id="plan-of"></span>
           <span class="pace" id="pace" hidden></span>
           <span class="badge" id="paused-badge" hidden>Paused</span>
+          <span class="badge away" id="away-badge" hidden>Off deck</span>
           <span class="badge edit" id="edited-badge" hidden title="These budgets differ from the plan in the deck file">Edited plan</span>
         </div>
         <div class="slide-bar"><div class="slide-fill" id="slide-fill"></div></div>
@@ -482,6 +489,7 @@ body[data-appendix] .count b { color: var(--accent); }
     </div>
     <div class="sep"></div>
     <button id="blackout" class="danger" title="Black out the projector (B)">Black</button>
+    <button id="cutaway" title="Step off the deck to show something else (C)">Cut away</button>
     <div class="sep"></div>
     <div class="mixer" id="mixer">
       <span id="audio-led" title="A slide clip is playing"></span>
@@ -494,7 +502,7 @@ body[data-appendix] .count b { color: var(--accent); }
     <div class="hint mono">
       <kbd>&#8592;</kbd><kbd>&#8594;</kbd> slide
       <kbd>P</kbd> pause <kbd>B</kbd> black <kbd>M</kbd> mute
-      <kbd>A</kbd> appendix <kbd>R</kbd> reset
+      <kbd>A</kbd> appendix <kbd>C</kbd> cut away <kbd>R</kbd> reset
     </div>
     <button id="fullscreen" title="Fullscreen (F)">Full</button>
   </footer>

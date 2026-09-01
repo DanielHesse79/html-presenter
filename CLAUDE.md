@@ -97,6 +97,9 @@ Messages (`protocol.js` is the authority):
 - `state` — deck → panel, on `slidechange`, `blackoutchange` and a 2 s heartbeat
 - `hello` — panel → deck, every 1.5 s until a state arrives
 - `nav` / `volume` / `mute` / `blackout` — panel → deck commands
+- `fullscreen` — panel → deck; `on: false` releases the screen. A message
+  without the field means enter, which is what it meant before the field
+  existed.
 
 The panel marks itself disconnected after 6 s of silence. On (re)connect it
 **pushes** its volume, mute and blackout to the deck rather than trusting the
@@ -166,6 +169,38 @@ the deck author's own CSS still applies. Key decisions:
 `slidechange` and `blackoutchange` are composed, bubbling CustomEvents. They are
 the integration point — hang new features off them rather than reaching into
 internals.
+
+### The cut-away
+
+Stepping off the deck to show something else live: a demo, another app.
+
+**It does not embed anything, and it cannot.** A browser window cannot
+render a native application, and `claude.ai` sends
+`X-Frame-Options: SAMEORIGIN`, so it cannot be framed either. Both were
+checked. Anyone picking this up again should not spend time on an iframe
+overlay for that particular case; the answer is a header, not a bug.
+
+What the panel does instead is get out of the way and keep the books
+straight. **Cut away** blacks out the projector and sends
+`fullscreen{on:false}`; leaving fullscreen is what actually frees the
+screen, and the blackout means a switch that fails shows black rather than
+a stale slide. **Back to deck** clears both, re-entering through the same
+arming path the projector uses on open.
+
+`exitFullscreen()` in `deck-agent.js` calls `disarm()` first. A request
+still waiting on the next click would otherwise fire mid-demo and pull the
+deck back over the thing you stepped away to show.
+
+In the session the clock keeps running, because the time is real and the
+room is still watching. What changes is the booking: the delta goes to
+`awayMs` instead of `actualsMs[index]` and `visitMs`. So a four-minute live
+demo does not leave the measured plan claiming that slide takes four and a
+half minutes, and the drift climbs throughout, with no special case needed:
+`elapsed` grows while the clamped spend does not.
+
+`thisAwayMs` is separate from `awayMs` because the badge shows the current
+detour. On stage the number you need is how long you have been gone this
+time; the session total belongs in the rehearsal record.
 
 ### The appendix band
 

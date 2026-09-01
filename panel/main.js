@@ -44,6 +44,7 @@ const ui = {
   restorePlan: el('restore-plan'), copyPlan: el('copy-plan'),
   elapsed: el('elapsed'), planOf: el('plan-of'), pace: el('pace'),
   paused: el('paused-badge'), edited: el('edited-badge'),
+  away: el('away-badge'), cutaway: el('cutaway'),
   slideFill: el('slide-fill'), slideSpent: el('slide-spent'),
   slideBudget: el('slide-budget'), planLeft: el('plan-left'),
   label: el('slide-label'), note: el('note'),
@@ -326,6 +327,13 @@ function renderTimer() {
   ui.elapsed.textContent = clock(session.elapsedSeconds);
   document.body.toggleAttribute('data-paused', session.state.paused);
   ui.paused.hidden = !session.state.paused;
+  ui.away.hidden = !session.state.away;
+  if (session.state.away) {
+    ui.away.textContent = 'Off deck ' + clock(session.thisAwaySeconds);
+  }
+  document.body.toggleAttribute('data-away', session.state.away);
+  ui.cutaway.toggleAttribute('data-on', session.state.away);
+  ui.cutaway.textContent = session.state.away ? 'Back to deck' : 'Cut away';
   ui.pause.textContent = session.state.paused ? 'Resume' : 'Pause';
   ui.pause.toggleAttribute('data-on', session.state.paused);
   ui.copyPlan.disabled = !session.hasRecording();
@@ -420,6 +428,28 @@ function drive(msg) {
 function pushMixer() {
   bus.send(volumeMessage(session.state.volume));
   bus.send(muteMessage(session.state.muted));
+}
+
+/**
+ * Step off the deck to show something else: a live demo, another app.
+ *
+ * Nothing here embeds that application, and nothing can. A browser window
+ * cannot render a native app, and claude.ai sends X-Frame-Options:
+ * SAMEORIGIN so it cannot be framed either. What this does instead is get
+ * the deck out of the way cleanly and keep the books straight while you
+ * are gone.
+ *
+ * Leaving fullscreen is what actually frees the screen; the blackout
+ * covers the moment of the switch, and means a failed switch shows black
+ * rather than a stale slide. Coming back re-enters through the same path
+ * the projector uses when it opens: the request lands on the next click
+ * in that window if the browser refuses it outright.
+ */
+function cutAway(on) {
+  session.setAway(on);
+  setBlackout(on);
+  bus.send(fullscreenMessage(!on));
+  renderTimer();
 }
 
 function setBlackout(on) {
@@ -543,6 +573,7 @@ function toggleAppendix() {
   if (first >= 0) drive(navMessage(null, first));
 }
 
+ui.cutaway.addEventListener('click', () => cutAway(!session.state.away));
 ui.appendixReturn.addEventListener('click',
   () => drive(navMessage(null, session.returnIndex)));
 ui.prev.addEventListener('click', () => drive(navMessage('prev')));
@@ -629,6 +660,8 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault(); toggleFullscreen(); break;
     case 'a': case 'A':
       e.preventDefault(); toggleAppendix(); break;
+    case 'c': case 'C':
+      e.preventDefault(); cutAway(!session.state.away); break;
     case 'Escape':
       if (isAppendix(index)) {
         e.preventDefault();

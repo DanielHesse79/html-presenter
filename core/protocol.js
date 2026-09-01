@@ -68,8 +68,10 @@ export function blackoutMessage(on) {
   return { type: BLACKOUT, v: PROTOCOL_VERSION, on: !!on };
 }
 
-export function fullscreenMessage() {
-  return { type: FULLSCREEN, v: PROTOCOL_VERSION };
+/** `on: false` releases the projector window, for stepping off the deck.
+ *  The field is additive: a panel that omits it still means "enter". */
+export function fullscreenMessage(on = true) {
+  return { type: FULLSCREEN, v: PROTOCOL_VERSION, on: on !== false };
 }
 
 export function clamp01(n) {

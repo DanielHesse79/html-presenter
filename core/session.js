@@ -34,6 +34,9 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     visitMs: 0,         // time on the current slide since arriving at it
     index: 0,
     paused: false,
+    away: false,        // stepped off the deck to show something else
+    awayMs: 0,          // time spent off it this session, booked to no slide
+    thisAwayMs: 0,      // and how long the current detour has run
     volume: 1,
     muted: false,
     blackout: false,
@@ -121,9 +124,19 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     lastTickAt = now;
     if (!state.paused) {
       state.elapsedMs += delta;
-      state.visitMs += delta;
-      if (state.index >= 0 && state.index < state.slideCount) {
-        state.actualsMs[state.index] = (state.actualsMs[state.index] || 0) + delta;
+      if (state.away) {
+        // Off the deck the clock still runs, because the time is real and
+        // the room is still watching. Only the booking changes: these
+        // minutes belong to the detour, not to whichever slide happens to
+        // be up behind it, or the measured plan would later claim that
+        // slide takes eight minutes.
+        state.awayMs += delta;
+        state.thisAwayMs += delta;
+      } else {
+        state.visitMs += delta;
+        if (state.index >= 0 && state.index < state.slideCount) {
+          state.actualsMs[state.index] = (state.actualsMs[state.index] || 0) + delta;
+        }
       }
       dirty = true;
     }
@@ -145,6 +158,23 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     dirty = true;
   }
 
+  /**
+   * Step off the deck, or come back.
+   *
+   * visitMs is deliberately left alone across both edges: the slide is
+   * still up, you are simply not talking to it, so it resumes rather than
+   * restarts. driftSeconds() then keeps climbing while you are away, with
+   * no special case, because elapsed grows and the clamped spend does not.
+   */
+  function setAway(on) {
+    // Restart the detour's own clock on the way out. On stage the number
+    // that matters is how long you have been gone this time, not the
+    // running total for the talk, which belongs in the rehearsal record.
+    if (on && !state.away) state.thisAwayMs = 0;
+    state.away = !!on;
+    dirty = true;
+  }
+
   function pause() { state.paused = true; dirty = true; }
   function resume() { state.paused = false; lastTickAt = Date.now(); dirty = true; }
   function togglePause() { if (state.paused) resume(); else pause(); }
@@ -153,6 +183,8 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
   function resetClock() {
     state.elapsedMs = 0;
     state.visitMs = 0;
+    state.awayMs = 0;
+    state.thisAwayMs = 0;
     state.actualsMs = fitLength([], state.slideCount);
     lastTickAt = Date.now();
     dirty = true;
@@ -244,6 +276,9 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
         elapsedMs: state.elapsedMs,
         actualsMs: state.actualsMs,
         paused: state.paused,
+        away: state.away,
+        awayMs: state.awayMs,
+        thisAwayMs: state.thisAwayMs,
         returnIndex: state.returnIndex,
         volume: state.volume,
         muted: state.muted,
@@ -265,6 +300,9 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     state.elapsedMs = Number(saved.elapsedMs) || 0;
     state.actualsMs = fitLength(saved.actualsMs, state.slideCount);
     state.paused = !!saved.paused;
+    state.away = !!saved.away;
+    state.awayMs = Number(saved.awayMs) || 0;
+    state.thisAwayMs = Number(saved.thisAwayMs) || 0;
     state.returnIndex = Number(saved.returnIndex) || 0;
     setVolume(saved.volume == null ? 1 : saved.volume);
     state.muted = !!saved.muted;
@@ -286,13 +324,15 @@ export function createSession({ key = 'default', slideCount = 0, authoredPlan = 
     state,
     setKey, setSlideCount, setAuthoredPlan, restoreAuthoredPlan, setAppendix,
     setBudgetMinutes, budgetSeconds, planTotalSeconds, cumulativeSeconds, hasPlan,
-    tick, setIndex, pause, resume, togglePause, resetClock,
+    tick, setIndex, pause, resume, togglePause, resetClock, setAway,
     driftSeconds, pace, remainingInPlanSeconds,
     planFromActuals, hasRecording,
     setVolume, setMuted, setBlackout,
     save, restore, clear,
     get elapsedSeconds() { return state.elapsedMs / 1000; },
     get visitSeconds() { return state.visitMs / 1000; },
+    get awaySeconds() { return state.awayMs / 1000; },
+    get thisAwaySeconds() { return state.thisAwayMs / 1000; },
     actualSeconds(i) { return (state.actualsMs[i] || 0) / 1000; },
     isAppendix,
     get inAppendix() { return isAppendix(state.index); },

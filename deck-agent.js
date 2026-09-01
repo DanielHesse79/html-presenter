@@ -160,7 +160,20 @@ function boot() {
     else enterFullscreen();
   }
 
-  bus.on(FULLSCREEN, enterFullscreen);
+  function exitFullscreen() {
+    // Disarm first. A request still waiting on the next click would fire
+    // mid-demo and yank the deck back over whatever you stepped away to
+    // show, which is the one thing this must never do.
+    disarm();
+    if (document.fullscreenElement) {
+      try { document.exitFullscreen(); } catch (_) { /* already out */ }
+    }
+  }
+
+  bus.on(FULLSCREEN, (msg) => {
+    if (msg && msg.on === false) exitFullscreen();
+    else enterFullscreen();
+  });
 
   // The panel adds deck-fullscreen when it has placed this window itself.
   if (params.has('deck-fullscreen')) {

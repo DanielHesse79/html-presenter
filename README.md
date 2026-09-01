@@ -93,6 +93,25 @@ The panel's master volume scales every clip and every `<video>` in the deck,
 without disturbing the levels you authored per clip. The lamp beside the fader
 lights while a clip is sounding.
 
+### Stepping off the deck
+
+**Cut away** (or `C`) is for showing something live that is not a slide: a
+demo, another application. It blacks out the projector and drops the deck
+window out of fullscreen, so you can bring anything else onto that screen.
+**Back to deck** puts it back where it was.
+
+The clock keeps running, because the time is real. What changes is where
+it is booked: to the cut-away rather than to whichever slide is up behind
+it. A four-minute demo therefore does not leave *Copy measured* claiming
+that slide needs four and a half minutes. The badge counts the current
+detour, and the pace figure keeps climbing so you can see the cost.
+
+This does not embed the other application, and no version of it can. A
+browser window cannot render a native app, and `claude.ai` refuses to be
+framed (`X-Frame-Options: SAMEORIGIN`). Put the other app on the projector
+screen yourself; this just gets the deck out of its way and keeps time
+honestly while you are there.
+
 ### Appendix slides
 
 A slide marked `data-appendix` sits in the file but outside the running
@@ -121,6 +140,7 @@ are included in the PDF export, at the end.
 | `R` | back to slide 1 | reset the clock and the measured run |
 | `P` | open the operator panel | pause / resume the clock |
 | `A` | appendix, and back again | appendix, and back again |
+| `C` | — | cut away, and back to the deck |
 | `Esc` | back to the talk | back to the talk |
 | `M` | — | mute |
 | `F` | — | fullscreen |
