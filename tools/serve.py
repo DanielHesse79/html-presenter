@@ -24,7 +24,6 @@ import html as html_entities
 import http.server
 import json
 import re
-import socketserver
 import sys
 import threading
 import urllib.parse
@@ -59,6 +58,31 @@ CONTENT_TYPES = {".js": "text/javascript", ".html": "text/html", ".css": "text/c
 
 QUIET_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif",
                   ".mp3", ".mp4", ".woff", ".woff2", ".ico")
+
+
+class Server(http.server.ThreadingHTTPServer):
+    """Threaded, because one request now blocks several others.
+
+    The panel fetches the deck to read its notes, and both thumbnails load the
+    same document again in their own iframes. With a deck that carries embedded
+    images that is three simultaneous requests for the same few megabytes, on
+    top of whatever the picker is reading. Served one at a time they queue until
+    the browser gives up and aborts, and the panel sits on "Loading deck..."
+    forever.
+    """
+
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        # Browsers abandon requests as a matter of course: a reload mid-download,
+        # a thumbnail iframe replaced, a preload no longer wanted. None of that
+        # is worth a traceback across the operator's console.
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError,
+                            BrokenPipeError)):
+            return
+        super().handle_error(request, client_address)
 
 
 def framework_path(name: str) -> Path | None:
@@ -322,10 +346,8 @@ def main() -> int:
         url = (base + PANEL_URL + "?deck="
                + urllib.parse.quote("/" + deck.as_posix(), safe=""))
 
-    socketserver.TCPServer.allow_reuse_address = True
     try:
-        server = socketserver.TCPServer(
-            ("127.0.0.1", args.port), make_handler(root, not args.no_inject))
+        server = Server(("127.0.0.1", args.port), make_handler(root, not args.no_inject))
     except OSError as e:
         print("error: cannot bind port " + str(args.port) + " - " + str(e) + "\n"
               "Another server may already be running; try --port "
