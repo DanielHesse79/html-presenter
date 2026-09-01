@@ -22,6 +22,7 @@ python tools/serve.py examples/index.html        # serve + open the operator pan
 python tools/serve.py ~/Desktop/my-deck.html     # any deck, anywhere on disk
 python tools/serve.py --root ~/talks             # name none, pick one in the panel
 python tools/serve.py deck.html --port 9000 --no-open --deck-first --no-inject
+python tools/present.py                          # app window, no browser chrome
 
 python tools/export_pdf.py  my-deck.html --size 1280x720
 python tools/export_pptx.py my-deck.html --scale 2   # pip install python-pptx PyMuPDF
@@ -189,6 +190,30 @@ budget and only moves once you overrun, so it is readable at a glance mid-talk.
 State is persisted to `localStorage` under `deck-stage:session:<deckUrl>`, and
 discarded when the slide count no longer matches (the deck was edited, so the
 old numbers no longer line up with the slides).
+
+### The application shell
+
+`tools/present.py` runs the server in-process and opens the panel through
+`--app=` in a Chromium window, using a dedicated profile under LOCALAPPDATA.
+That profile exists so `--disable-popup-blocking` can be set somewhere it is
+defensible: the panel opens the projector with `window.open()`, a fresh profile
+blocks that, and nothing but localhost is ever loaded there. `Present.cmd` is
+the double-click wrapper.
+
+`core/screens.js` wraps `getScreenDetails()` to find the display the panel is
+*not* on. Two rules it must keep: never call `getScreenDetails()` without either
+a user gesture or an already-granted permission, because it prompts; and never
+let the absence of the API matter. The placement is cached because
+`window.open()` has to run synchronously inside the click. Awaiting anything
+first spends the user activation and the popup gets blocked.
+
+Only the projector document can take itself fullscreen, and only with user
+activation, so `deck-agent.js` tries on load and otherwise arms the request on
+the next click or keypress in that window.
+
+The server is `serve.Server`, a ThreadingHTTPServer. It has to be: the panel and
+both thumbnails fetch the same deck at once, and served serially they queue
+until the browser aborts.
 
 ### Export
 
