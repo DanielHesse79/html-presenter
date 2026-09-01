@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Presenter view</title>
+<style>
+  :root {
+    --bg: #0E1730;
+    --ink: #F7F3EC;
+    --ink-soft: #C9D2E0;
+    --muted: #7A90B8;
+    --hairline: rgba(247, 243, 236, 0.12);
+    --accent: #D8901F;
+    --bad: #C4452B;
+    --good: #4A9A6B;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 20px; padding: 16px 32px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .status {
+    display: flex; align-items: center; gap: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--bad); flex-shrink: 0;
+    transition: background 200ms ease;
+  }
+  .dot[data-live] { background: var(--good); }
+  .count {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 20px; font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+  }
+  .count .total { color: var(--muted); }
+
+  main {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column; gap: 20px;
+    padding: 28px 40px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .slide-label {
+    font-size: 20px; color: var(--ink-soft);
+    margin-top: -12px; min-height: 24px;
+  }
+  .note {
+    flex: 1; min-height: 0; overflow-y: auto;
+    font-size: 38px; line-height: 1.36;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .note.empty { color: var(--muted); font-style: italic; }
+
+  .next {
+    flex-shrink: 0;
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--accent);
+    background: rgba(247, 243, 236, 0.04);
+    padding: 16px 22px;
+  }
+  .next[hidden] { display: none; }
+  .next-label {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .next-text {
+    font-size: 16px; line-height: 1.5; color: var(--ink-soft);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  footer {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 20px; padding: 14px 32px;
+    border-top: 1px solid var(--hairline);
+  }
+  .clock {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 22px; font-variant-numeric: tabular-nums;
+  }
+  .clock .elapsed { color: var(--accent); }
+  .clock .target { color: var(--muted); font-size: 15px; }
+  .hint {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px; color: var(--muted);
+  }
+  kbd {
+    font-family: inherit; font-size: 10px;
+    padding: 2px 6px; margin: 0 2px;
+    background: rgba(247, 243, 236, 0.08);
+    border: 1px solid var(--hairline); border-radius: 3px;
+    color: var(--ink);
+  }
+  button {
+    font: inherit; font-size: 11px;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 7px 12px; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--hairline); border-radius: 3px;
+  }
+  button:hover { color: var(--ink); border-color: var(--accent); }
+
+  .banner {
+    padding: 10px 32px; text-align: center;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; background: #6B2D1F; color: #fff;
+  }
+  .banner[hidden] { display: none; }
+</style>
+</head>
+<body>
+  <div class="banner" id="banner" hidden></div>
+
+  <header>
+    <div class="status">
+      <span class="dot" id="dot"></span>
+      <span id="status-text">Waiting for deck…</span>
+    </div>
+    <div class="count">
+      <span id="current">—</span><span class="total"> / <span id="total">—</span></span>
+    </div>
+  </header>
+
+  <main>
+    <div class="eyebrow">Now speaking</div>
+    <div class="slide-label" id="slide-label"></div>
+    <div class="note empty" id="note">Waiting for the deck to report its position…</div>
+    <div class="next" id="next" hidden>
+      <div class="next-label">Next · <span id="next-label"></span></div>
+      <div class="next-text" id="next-text"></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="clock">
+      <span class="elapsed" id="elapsed">00:00</span>
+      <span class="target" id="target"></span>
+    </div>
+    <div class="hint">
+      <kbd>←</kbd><kbd>→</kbd> navigate · <kbd>R</kbd> reset clock · <kbd>F</kbd> fullscreen
+    </div>
+    <button id="reset">Reset clock</button>
+  </footer>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const CHANNEL = params.get('channel') || 'deck-stage';
+  const STALE_MS = 6000;      // no heartbeat for this long → show disconnected
+  const HELLO_MS = 1500;      // keep announcing until the deck answers
+
+  const el = (id) => document.getElementById(id);
+  const ui = {
+    banner: el('banner'), dot: el('dot'), status: el('status-text'),
+    current: el('current'), total: el('total'),
+    label: el('slide-label'), note: el('note'),
+    next: el('next'), nextLabel: el('next-label'), nextText: el('next-text'),
+    elapsed: el('elapsed'), target: el('target'), reset: el('reset'),
+  };
+
+  let notes = [];
+  let notesUrl = null;
+  let lastNotesAttempt = 0;
+  let total = 0;
+  let lastSeen = 0;
+  let startTime = Date.now();
+  const RETRY_MS = 5000;      // back off between failed note fetches
+
+  // ── Clock ──────────────────────────────────────────────────────────────
+  const pad = (n) => String(n).padStart(2, '0');
+  function tick() {
+    const s = Math.floor((Date.now() - startTime) / 1000);
+    ui.elapsed.textContent = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+  }
+  setInterval(tick, 500);
+  ui.reset.addEventListener('click', () => { startTime = Date.now(); tick(); });
+
+  // ── Notes ──────────────────────────────────────────────────────────────
+  // Fetched straight from the deck document, so the presenter never needs a
+  // handle on the deck window and survives either side reloading.
+  async function loadNotes(rawUrl) {
+    if (!rawUrl) return;
+    // Drop the fragment: deck-stage keeps #<slide> in sync with the current
+    // position, so an unstripped URL would look "new" on every navigation.
+    const url = new URL(rawUrl, location.href).href.split('#')[0];
+    if (url === notesUrl) return;
+    if (Date.now() - lastNotesAttempt < RETRY_MS) return;
+    lastNotesAttempt = Date.now();
+
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      const tag = doc.getElementById('speaker-notes');
+      if (!tag) {
+        notesUrl = url;   // nothing to load; stop asking
+        note('This deck has no #speaker-notes block.', true);
+        return;
+      }
+      const parsed = JSON.parse(tag.textContent || '[]');
+      if (Array.isArray(parsed)) {
+        notes = parsed;
+        notesUrl = url;
+        render();
+      }
+    } catch (err) {
+      // Keep retrying on the heartbeat — a deck reload or a restarted server
+      // fixes itself. Never clobber notes we already have.
+      console.warn('[presenter] Could not load notes:', err);
+      if (!notes.length) {
+        note(`Could not read speaker notes from ${url} — ${err.message}`, true);
+      }
+    }
+  }
+
+  function note(text, isEmpty) {
+    ui.note.textContent = text;
+    ui.note.classList.toggle('empty', !!isEmpty);
+  }
+
+  // ── Rendering ──────────────────────────────────────────────────────────
+  let index = -1;
+  let label = '';
+
+  function render() {
+    if (index < 0) return;
+    ui.current.textContent = String(index + 1);
+    ui.total.textContent = total ? String(total) : '—';
+    ui.label.textContent = label.replace(/^\d+\s+/, '');
+
+    const current = notes[index];
+    if (current) note(current, false);
+    else note('(no note for this slide)', true);
+
+    const upcoming = notes[index + 1];
+    if (upcoming && (!total || index + 1 < total)) {
+      ui.nextText.textContent = upcoming;
+      ui.nextLabel.textContent = `slide ${index + 2}`;
+      ui.next.hidden = false;
+    } else {
+      ui.next.hidden = true;
+    }
+  }
+
+  function setLive(live) {
+    ui.dot.toggleAttribute('data-live', live);
+    ui.status.textContent = live ? 'Connected' : 'Deck not responding';
+    ui.banner.hidden = live;
+    if (!live) {
+      ui.banner.textContent =
+        'Lost the deck. Is the deck window still open, and served over http:// ?';
+    }
+  }
+
+  // ── Channel ────────────────────────────────────────────────────────────
+  if (typeof BroadcastChannel === 'undefined') {
+    note(
+      'This browser has no BroadcastChannel, or the page was opened as a ' +
+      'file:// URL. Serve the deck folder over http:// and reopen.', true
+    );
+    ui.banner.hidden = false;
+    ui.banner.textContent = 'No channel available — serve over http://';
+    return;
+  }
+
+  const bus = new BroadcastChannel(CHANNEL);
+
+  bus.addEventListener('message', (e) => {
+    const msg = e.data;
+    if (!msg || msg.type !== 'state') return;
+
+    lastSeen = Date.now();
+    setLive(true);
+
+    if (typeof msg.total === 'number' && msg.total > 0) total = msg.total;
+    if (typeof msg.label === 'string') label = msg.label;
+    if (msg.target) ui.target.textContent = `/ target ${msg.target}`;
+
+    const changed = msg.index !== index;
+    index = msg.index;
+    if (changed || !notes.length) render();
+
+    if (msg.deckUrl) loadNotes(msg.deckUrl);
+  });
+
+  const sayHello = () => bus.postMessage({ type: 'hello' });
+  sayHello();
+  setInterval(() => { if (Date.now() - lastSeen > HELLO_MS) sayHello(); }, HELLO_MS);
+  setInterval(() => setLive(Date.now() - lastSeen < STALE_MS), 1000);
+
+  // Optimistic first paint: the deck path is in the query string, so notes can
+  // load before the first heartbeat arrives.
+  if (params.get('deck')) loadNotes(params.get('deck'));
+
+  // ── Keyboard: drive the deck from this window ──────────────────────────
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case 'ArrowRight': case 'PageDown': case ' ':
+        e.preventDefault(); bus.postMessage({ type: 'nav', dir: 'next' }); break;
+      case 'ArrowLeft': case 'PageUp':
+        e.preventDefault(); bus.postMessage({ type: 'nav', dir: 'prev' }); break;
+      case 'Home':
+        e.preventDefault(); bus.postMessage({ type: 'nav', dir: 'first' }); break;
+      case 'r': case 'R':
+        startTime = Date.now(); tick(); break;
+      case 'f': case 'F':
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+        break;
+    }
+  });
+
+  setLive(false);
+})();
+</script>
+</body>
+</html>

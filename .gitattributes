@@ -1,0 +1,17 @@
+# Normalise to LF in the repository; check out native on Windows.
+* text=auto
+
+*.js    text eol=lf
+*.py    text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+
+# Binary assets an example deck might carry.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.mp3   binary
+*.woff  binary
+*.woff2 binary

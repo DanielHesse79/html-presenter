@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>deck-stage example</title>
+
+<!-- One entry per slide, in order. Missing entries just show a placeholder. -->
+<script type="application/json" id="speaker-notes">
+[
+  "Opening slide. The presenter window shows this text large enough to read at a glance, with the next note previewed underneath.",
+  "Slides are plain HTML — a <section> per slide, styled however you like. deck-stage scales the whole thing to fit whatever screen it lands on.",
+  "Add data-sound to a slide and deck-audio.js plays it on arrival, then stops when you move on.",
+  "Press P for the presenter view, then export to PDF or PPTX from tools/."
+]
+</script>
+
+<style>
+  :root {
+    --bg: #F7F3EC;
+    --ink: #15233D;
+    --muted: #6F7B92;
+    --accent: #B8741A;
+  }
+  html, body { margin: 0; background: var(--bg); }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  deck-stage section { background: var(--bg); color: var(--ink); overflow: hidden; }
+
+  .frame {
+    width: 100%; height: 100%; box-sizing: border-box;
+    padding: 100px 120px;
+    display: flex; flex-direction: column; justify-content: center; gap: 28px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 24px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 { font-size: 150px; line-height: 0.94; margin: 0; letter-spacing: -0.03em; font-weight: 500; }
+  h2 { font-size: 96px;  line-height: 0.98; margin: 0; letter-spacing: -0.02em; font-weight: 500; }
+  p  { font-size: 34px; line-height: 1.4; color: var(--muted); margin: 0; max-width: 1300px; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.82em; background: #EFE9DB; padding: 2px 10px; border-radius: 4px;
+  }
+  .rule { height: 4px; width: 120px; background: var(--accent); }
+</style>
+
+<script src="../deck-stage.js"></script>
+<script src="../presenter.js" data-presenter="../presenter.html"></script>
+<script src="../deck-audio.js"></script>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <section data-label="Title">
+    <div class="frame">
+      <div class="rule"></div>
+      <div class="eyebrow">deck-stage</div>
+      <h1>HTML decks,<br/>with a real<br/>presenter view.</h1>
+    </div>
+  </section>
+
+  <section data-label="Authoring">
+    <div class="frame">
+      <div class="eyebrow">Authoring</div>
+      <h2>One <code>&lt;section&gt;</code> per slide.</h2>
+      <p>
+        Write ordinary HTML and CSS. The deck is authored at a fixed size —
+        1920&times;1080 here — and scaled to fit the screen it lands on, so
+        what you design is what shows.
+      </p>
+    </div>
+  </section>
+
+  <!-- Drop an audio file next to the deck and uncomment to hear it:
+       <section data-label="Sound" data-sound="applause.mp3" data-sound-volume="0.6"> -->
+  <section data-label="Sound">
+    <div class="frame">
+      <div class="eyebrow">Optional</div>
+      <h2>Sound, per slide.</h2>
+      <p>
+        Add <code>data-sound="clip.mp3"</code> to any slide. It plays on
+        arrival and stops when you navigate away. <code>data-sound-loop</code>
+        and <code>data-sound-volume</code> are there if you need them.
+      </p>
+    </div>
+  </section>
+
+  <section data-label="Presenting">
+    <div class="frame">
+      <div class="eyebrow">Presenting</div>
+      <h2>Press <code>P</code>.</h2>
+      <p>
+        The presenter window opens with your notes, the next note, a slide
+        counter and an elapsed-time clock. Drag it to your second screen —
+        navigation syncs in both directions.
+      </p>
+    </div>
+  </section>
+
+</deck-stage>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Export output
+*.pdf
+*.pptx
+
+# Temporary print copies written beside a deck during export
+.*.print.tmp.html
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
