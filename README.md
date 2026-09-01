@@ -36,6 +36,24 @@ so a file missing its `<deck-stage>` shows up greyed out with the reason rather
 than silently going missing. Click the deck's name in the panel header to get
 back to the list.
 
+## Running it as a program
+
+```bash
+python tools/present.py            # or double-click Present.cmd on Windows
+```
+
+Same thing, without the browser around it: the server runs in that process, the
+panel opens in an app window with no address bar or tabs, and closing the window
+stops the server. It uses its own browser profile, kept out of your everyday
+one, which is the only place where turning the popup blocker off is reasonable.
+The panel opens the projector with `window.open()`, and being told to allow
+popups five minutes before a talk is not a good moment.
+
+With a projector attached, **Open projector** puts the deck full screen on it by
+itself. The first time, the browser asks once for permission to see your
+screens. Refuse it, or present on a single screen, and the window simply opens
+in the ordinary place for you to move yourself.
+
 ## The operator panel
 
 The laptop screen is the console. The projector shows nothing but slides.

@@ -19,7 +19,9 @@ import { createTransport } from '../core/transport.js';
 import {
   DEFAULT_CHANNEL, STATE,
   helloMessage, navMessage, volumeMessage, muteMessage, blackoutMessage,
+  fullscreenMessage,
 } from '../core/protocol.js';
+import { findProjectorScreen, screensSupported, permissionState } from '../core/screens.js';
 import { loadDeckDocument } from '../core/deck-doc.js';
 import { createSession } from '../core/session.js';
 import { clock, magnitude } from '../core/format.js';
@@ -67,6 +69,7 @@ let pushedOnConnect = false;
 let lastReloadAt = 0;
 let volumeTouchedAt = 0;
 let projectorWindow = null;
+let placement = null;   // cached projector screen, see rememberScreen()
 
 const previewNow = createPreview(ui.previewNow);
 const previewNext = createPreview(ui.previewNext);
@@ -362,29 +365,82 @@ function setBlackout(on) {
   bus.send(blackoutMessage(on));
 }
 
+/**
+ * Learn where the projector is, without ever prompting on page load.
+ *
+ * The answer is cached because opening the window has to happen synchronously
+ * inside the click: awaiting anything first spends the user activation, and the
+ * popup gets blocked. So the first run may open in the ordinary place and move
+ * afterwards, and every run after that lands on the projector immediately.
+ */
+async function rememberScreen({ allowPrompt = false } = {}) {
+  if (!screensSupported()) return null;
+  placement = await findProjectorScreen(allowPrompt);
+  describeTarget();
+  return placement;
+}
+
+function describeTarget() {
+  if (!screensSupported()) {
+    ui.openProjector.title =
+      'Opens the deck in a second window. Drag it to the projector and press F.';
+  } else if (placement) {
+    ui.openProjector.title = 'Opens the deck full screen on ' + placement.label + '.';
+  } else {
+    ui.openProjector.title =
+      'Opens the deck in a second window. With a projector attached it will be '
+      + 'placed there; you may be asked for permission to see your screens once.';
+  }
+}
+
 function openProjector() {
   if (projectorWindow && !projectorWindow.closed) {
     projectorWindow.focus();
+    bus.send(fullscreenMessage());
     return;
   }
   if (!deckDoc) return;
+
   const u = new URL(deckDoc.url);
   u.searchParams.set('deck-channel', CHANNEL);
-  const w = Math.min(1280, Math.floor(screen.availWidth * 0.6));
-  const h = Math.round(w * 9 / 16) + 40;
-  projectorWindow = window.open(
-    u.href, 'deck-projector',
-    `width=${w},height=${h},left=60,top=60,resizable=yes,scrollbars=no`
-  );
+  // Only promise fullscreen when we know where the window is going. Asking a
+  // window that is still on this screen to fill it would cover the panel.
+  if (placement) u.searchParams.set('deck-fullscreen', '1');
+
+  const features = placement
+    ? `left=${placement.left},top=${placement.top},`
+      + `width=${placement.width},height=${placement.height},`
+      + 'resizable=yes,scrollbars=no'
+    : (() => {
+        // availWidth can be 0 in an embedded or headless browser, and a
+        // zero-width window is worse than a wrongly-sized one.
+        const avail = Math.floor(screen.availWidth * 0.6) || 960;
+        const w = Math.max(640, Math.min(1280, avail));
+        return `width=${w},height=${Math.round(w * 9 / 16) + 40},`
+          + 'left=60,top=60,resizable=yes,scrollbars=no';
+      })();
+
+  projectorWindow = window.open(u.href, 'deck-projector', features);
   if (!projectorWindow) {
-    banner('The projector window was blocked. Allow popups for this address, ' +
-           'then press Open projector again.');
+    banner('The projector window was blocked. Allow popups for this address, '
+           + 'then press Open projector again.');
     return;
   }
-  // Drag it to the second screen and press F11. The Window Management API
-  // could place and fullscreen it directly, but it needs a permission prompt
-  // that is worse than one keystroke on the night.
   projectorWindow.focus();
+
+  // First run with no cached placement: this is the moment to ask. Moving the
+  // window we just opened is allowed, and the deck fills the screen on the
+  // first key or click in it.
+  if (!placement) {
+    rememberScreen({ allowPrompt: true }).then((found) => {
+      if (!found || !projectorWindow || projectorWindow.closed) return;
+      try {
+        projectorWindow.moveTo(found.left, found.top);
+        projectorWindow.resizeTo(found.width, found.height);
+      } catch (_) { /* the browser may refuse; the window still works */ }
+      bus.send(fullscreenMessage());
+    });
+  }
 }
 
 ui.reloadDeck.addEventListener('click', async () => {
@@ -508,6 +564,19 @@ window.addEventListener('beforeunload', (e) => {
     e.returnValue = '';
   }
 });
+
+rememberScreen();
+if (screensSupported()) {
+  // Follow a projector plugged in after the panel opened, but only once
+  // permission exists: getScreenDetails() is what raises the prompt, and a
+  // prompt nobody asked for on page load is the thing being avoided here.
+  permissionState().then((state) => {
+    if (state !== 'granted') return;
+    window.getScreenDetails()
+      .then((d) => d.addEventListener('screenschange', () => rememberScreen()))
+      .catch(() => {});
+  });
+}
 
 setLive(false);
 renderTimer();

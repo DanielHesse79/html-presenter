@@ -14,6 +14,7 @@
  *   panel -> deck    VOLUME     master volume, 0..1
  *   panel -> deck    MUTE       master mute
  *   panel -> deck    BLACKOUT   cut the projector to black
+ *   panel -> deck    FULLSCREEN ask the projector to fill its screen
  *
  * Backwards compatibility: the STATE message keeps the exact field set the
  * legacy presenter.html reads (index, total, label, deckUrl, target), so a
@@ -30,6 +31,7 @@ export const NAV = 'nav';
 export const VOLUME = 'volume';
 export const MUTE = 'mute';
 export const BLACKOUT = 'blackout';
+export const FULLSCREEN = 'fullscreen';
 
 /** deck -> panel. `audio` and `blackout` are optional; a legacy deck omits them. */
 export function stateMessage({
@@ -64,6 +66,10 @@ export function muteMessage(on) {
 
 export function blackoutMessage(on) {
   return { type: BLACKOUT, v: PROTOCOL_VERSION, on: !!on };
+}
+
+export function fullscreenMessage() {
+  return { type: FULLSCREEN, v: PROTOCOL_VERSION };
 }
 
 export function clamp01(n) {

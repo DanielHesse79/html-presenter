@@ -7,6 +7,9 @@
 *.md    text eol=lf
 *.json  text eol=lf
 
+# Windows batch files want CRLF.
+*.cmd   text eol=crlf
+
 # Binary assets an example deck might carry.
 *.png   binary
 *.jpg   binary

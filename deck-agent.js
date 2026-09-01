@@ -18,6 +18,7 @@
  *
  * Config, in precedence order:
  *   ?deck-channel=NAME in the deck URL   (how the panel isolates two decks)
+ *   ?deck-fullscreen     set by the panel when it placed this window itself
  *   data-channel / data-panel / data-target on the script tag
  *   defaults: channel "deck-stage", panel.html beside this file, no target
  *
@@ -30,7 +31,7 @@
 
 import { createTransport } from './core/transport.js';
 import {
-  DEFAULT_CHANNEL, STATE, HELLO, NAV, VOLUME, MUTE, BLACKOUT,
+  DEFAULT_CHANNEL, STATE, HELLO, NAV, VOLUME, MUTE, BLACKOUT, FULLSCREEN,
   stateMessage,
 } from './core/protocol.js';
 
@@ -119,6 +120,54 @@ function boot() {
     if (d) d.blackout = msg.on;      // deck-stage emits blackoutchange, which publishes
   });
 
+
+  // -- Filling the screen -------------------------------------------------
+  //
+  // The panel can place this window on the projector, but only this document
+  // can take it fullscreen, and only with user activation. A window opened
+  // from a click usually still carries that activation, so the first attempt
+  // often succeeds. When it does not, the request is armed on the next click
+  // or keypress in here rather than being dropped: one keystroke is a far
+  // better failure mode than a browser toolbar across the top of a talk.
+
+  let armed = null;
+
+  function disarm() {
+    if (!armed) return;
+    document.removeEventListener('pointerdown', armed);
+    document.removeEventListener('keydown', armed);
+    armed = null;
+  }
+
+  function armForGesture() {
+    if (armed) return;
+    armed = () => { disarm(); enterFullscreen(); };
+    document.addEventListener('pointerdown', armed);
+    document.addEventListener('keydown', armed);
+  }
+
+  function enterFullscreen() {
+    if (document.fullscreenElement) return;
+    const el = document.documentElement;
+    if (!el.requestFullscreen) return;
+    let p;
+    try { p = el.requestFullscreen(); } catch (_) { armForGesture(); return; }
+    if (p && p.catch) p.catch(() => armForGesture());
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else enterFullscreen();
+  }
+
+  bus.on(FULLSCREEN, enterFullscreen);
+
+  // The panel adds deck-fullscreen when it has placed this window itself.
+  if (params.has('deck-fullscreen')) {
+    if (document.readyState === 'complete') enterFullscreen();
+    else window.addEventListener('load', enterFullscreen, { once: true });
+  }
+
   // ── Opening the panel from the deck ────────────────────────────────────
   // The normal flow is the other way round: you start the panel and it opens
   // the projector. This is the fallback for when you already have a deck open.
@@ -150,6 +199,10 @@ function boot() {
     if (e.key === 'p' || e.key === 'P' || e.key === 'n' || e.key === 'N') {
       e.preventDefault();
       openPanel();
+    }
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      toggleFullscreen();
     }
   });
 
