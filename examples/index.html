@@ -7,16 +7,18 @@
 <!-- One entry per slide, in order. Missing entries just show a placeholder. -->
 <script type="application/json" id="speaker-notes">
 [
-  "Opening slide. The presenter window shows this text large enough to read at a glance, with the next note previewed underneath.",
+  "Opening slide. The operator panel shows this note large enough to read at a glance, with the next one previewed underneath.",
   "Slides are plain HTML — a <section> per slide, styled however you like. deck-stage scales the whole thing to fit whatever screen it lands on.",
-  "Add data-sound to a slide and deck-audio.js plays it on arrival, then stops when you move on.",
-  "Press P for the presenter view, then export to PDF or PPTX from tools/."
+  "This slide is sounding. Pull the master fader in the panel, or press M, and the tone follows.\n\ndata-sound-volume is the clip's own level; the fader scales it rather than replacing it.",
+  "The panel is the console: clock, editable times, volume, blackout. Export to PDF or PPTX from tools/ for a backup.",
+  "Appendix. Reached from the rundown, never by pressing right. Answer the question, then press Back to return to where the talk was.",
+  "Appendix. Arrows step within the appendix, so two or three related backups can be kept together and paged through."
 ]
 </script>
 
 <!-- Minutes per slide, same order. Drives the presenter time plan. -->
 <script type="application/json" id="deck-plan">
-[0.5, 1, 1, 0.5]
+[0.5, 1, 1, 0.5, 0, 0]
 </script>
 
 <style>
@@ -50,9 +52,9 @@
   .rule { height: 4px; width: 120px; background: var(--accent); }
 </style>
 
-<script src="../deck-stage.js"></script>
-<script src="../presenter.js" data-presenter="../presenter.html"></script>
-<script src="../deck-audio.js"></script>
+<!-- No framework tags on purpose. tools/serve.py mounts deck-stage.js,
+     deck-audio.js and deck-agent.js at /__deck/ and injects them, so this
+     deck stays as portable as one you wrote yourself. -->
 </head>
 <body>
 
@@ -62,7 +64,7 @@
     <div class="frame">
       <div class="rule"></div>
       <div class="eyebrow">deck-stage</div>
-      <h1>HTML decks,<br/>with a real<br/>presenter view.</h1>
+      <h1>HTML decks,<br/>with a real<br/>operator panel.</h1>
     </div>
   </section>
 
@@ -78,16 +80,16 @@
     </div>
   </section>
 
-  <!-- Drop an audio file next to the deck and uncomment to hear it:
-       <section data-label="Sound" data-sound="applause.mp3" data-sound-volume="0.6"> -->
-  <section data-label="Sound">
+  <section data-label="Sound" data-sound="assets/ambient-loop.wav"
+           data-sound-volume="0.6" data-sound-loop>
     <div class="frame">
       <div class="eyebrow">Optional</div>
       <h2>Sound, per slide.</h2>
       <p>
-        Add <code>data-sound="clip.mp3"</code> to any slide. It plays on
-        arrival and stops when you navigate away. <code>data-sound-loop</code>
-        and <code>data-sound-volume</code> are there if you need them.
+        This slide is playing a looping tone. Add
+        <code>data-sound="clip.mp3"</code> to any slide and it starts on
+        arrival, then stops when you leave. Pull the fader in the panel and
+        you will hear this one follow it.
       </p>
     </div>
   </section>
@@ -95,11 +97,38 @@
   <section data-label="Presenting">
     <div class="frame">
       <div class="eyebrow">Presenting</div>
-      <h2>Press <code>P</code>.</h2>
+      <h2>The laptop is the console.</h2>
       <p>
-        The presenter window opens with your notes, the next note, a slide
-        counter and an elapsed-time clock. Drag it to your second screen —
-        navigation syncs in both directions.
+        Notes, a big pausable clock, a per-slide time plan you can retype on
+        the night, master volume and a blackout key. This window shows only
+        slides. Navigation syncs in both directions.
+      </p>
+    </div>
+  </section>
+
+  <!-- Appendix: in the file, out of the running order. Arrow keys step
+       over these; reach them from the rundown, or press A. -->
+  <section data-label="Backup: the numbers" data-appendix>
+    <div class="frame">
+      <div class="eyebrow">Appendix</div>
+      <h2>The slide you hoped nobody would ask for.</h2>
+      <p>
+        Marked <code>data-appendix</code>. It never comes up by pressing
+        right, carries no time budget, and does not move the pace. The
+        clock keeps running while you are here, so the panel shows what
+        the detour is costing.
+      </p>
+    </div>
+  </section>
+
+  <section data-label="Backup: the method" data-appendix>
+    <div class="frame">
+      <div class="eyebrow">Appendix</div>
+      <h2>Arrows work inside the appendix.</h2>
+      <p>
+        Stepping stays in the band you are in, so a related pair of
+        backups can be paged through without falling back into the talk.
+        Escape, or Back in the panel, returns you.
       </p>
     </div>
   </section>

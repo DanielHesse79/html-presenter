@@ -1,16 +1,17 @@
-"""Serve a deck over http:// so the presenter window can talk to it.
+"""Serve a deck over http:// so the operator panel can drive it.
 
-    python tools/serve.py my-deck.html      # serve its folder, open it
+    python tools/serve.py my-deck.html      # serve its folder, open the panel
     python tools/serve.py                   # serve the current folder
     python tools/serve.py deck.html --port 9000 --no-open
+    python tools/serve.py deck.html --deck-first   # open the deck, not the panel
 
 Point it at *any* deck, anywhere on disk. The framework files are mounted at
 /__deck/ and injected into decks that do not already load them, so a deck
-Claude just wrote for you gets a presenter view without being edited.
+Claude just wrote for you gets an operator panel without being edited.
 
 Why a server at all: browsers give every file:// URL its own opaque origin, so
 two windows opened from the same file cannot share a BroadcastChannel. Over
-http://localhost they share one origin and the presenter view syncs.
+http://localhost they share one origin and the panel syncs with the deck.
 
 Only localhost is bound, so nothing is exposed to the network.
 """
@@ -19,9 +20,10 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import html as html_entities
 import http.server
+import json
 import re
-import socketserver
 import sys
 import threading
 import urllib.parse
@@ -30,15 +32,78 @@ from pathlib import Path
 
 DEFAULT_PORT = 8765
 
-# Repository root — deck-stage.js and friends live here.
+# Repository root - deck-stage.js and friends live here.
 FRAMEWORK_DIR = Path(__file__).resolve().parent.parent
 MOUNT = "/__deck/"
+
+# Single files servable from the mount.
 FRAMEWORK_FILES = {
-    "deck-stage.js", "presenter.js", "presenter.html", "deck-audio.js",
+    "deck-stage.js", "deck-audio.js", "deck-agent.js",
+    "panel.html",
+    # Legacy path, kept working for decks that wire it up by hand.
+    "presenter.js", "presenter.html",
 }
+# Whole directories servable from the mount.
+FRAMEWORK_DIRS = ("core", "panel")
+
+PANEL_URL = MOUNT + "panel.html"
+DECKS_ENDPOINT = MOUNT + "decks.json"
+
+# How far into a file to look for <deck-stage>. A deck with embedded images
+# runs to megabytes, and the element can sit well past the CSS.
+DECK_SCAN_BYTES = 4 * 1024 * 1024
+DECK_LIST_LIMIT = 200
+
+CONTENT_TYPES = {".js": "text/javascript", ".html": "text/html", ".css": "text/css"}
 
 QUIET_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif",
                   ".mp3", ".mp4", ".woff", ".woff2", ".ico")
+
+
+class Server(http.server.ThreadingHTTPServer):
+    """Threaded, because one request now blocks several others.
+
+    The panel fetches the deck to read its notes, and both thumbnails load the
+    same document again in their own iframes. With a deck that carries embedded
+    images that is three simultaneous requests for the same few megabytes, on
+    top of whatever the picker is reading. Served one at a time they queue until
+    the browser gives up and aborts, and the panel sits on "Loading deck..."
+    forever.
+    """
+
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        # Browsers abandon requests as a matter of course: a reload mid-download,
+        # a thumbnail iframe replaced, a preload no longer wanted. None of that
+        # is worth a traceback across the operator's console.
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError,
+                            BrokenPipeError)):
+            return
+        super().handle_error(request, client_address)
+
+
+def framework_path(name: str) -> Path | None:
+    """Resolve a /__deck/ request to a file, or None if it is not ours.
+
+    Subdirectories are allowed for core/ and panel/, so the request has to be
+    checked for traversal rather than matched against a flat name set.
+    """
+    if not name or name.endswith("/"):
+        return None
+    target = (FRAMEWORK_DIR / name).resolve()
+    try:
+        rel = target.relative_to(FRAMEWORK_DIR)
+    except ValueError:
+        return None                       # escaped the framework directory
+    parts = rel.parts
+    if len(parts) == 1:
+        allowed = parts[0] in FRAMEWORK_FILES
+    else:
+        allowed = parts[0] in FRAMEWORK_DIRS and target.suffix in CONTENT_TYPES
+    return target if allowed and target.is_file() else None
 
 
 def _loads_script(html: str, name: str) -> bool:
@@ -57,28 +122,27 @@ def inject_framework(html: str) -> str:
     """Add the framework tags to a deck that does not already load them.
 
     Only touches documents that actually contain a <deck-stage> element, and
-    skips any script the author already wired up themselves.
+    skips any script the author already wired up themselves. A deck that loads
+    the legacy presenter.js is left alone entirely: it has opted into the old
+    path, and injecting the agent on top would put two publishers on the channel.
     """
     if "<deck-stage" not in html:
         return html
 
     # Check against a comment-free copy; insert into the original.
     probe = re.sub(r"<!--.*?-->", "", html, flags=re.S)
-    if _loads_script(probe, MOUNT + "presenter.js"):
+    if _loads_script(probe, "presenter.js") or _loads_script(probe, "deck-agent.js"):
         return html
 
     tags = []
     if not _loads_script(probe, "deck-stage.js"):
-        tags.append(f'<script src="{MOUNT}deck-stage.js"></script>')
-    if not _loads_script(probe, "presenter.js"):
-        tags.append(
-            f'<script src="{MOUNT}presenter.js" '
-            f'data-presenter="{MOUNT}presenter.html"></script>'
-        )
+        tags.append('<script src="' + MOUNT + 'deck-stage.js"></script>')
     if not _loads_script(probe, "deck-audio.js"):
-        tags.append(f'<script src="{MOUNT}deck-audio.js"></script>')
-    if not tags:
-        return html
+        tags.append('<script src="' + MOUNT + 'deck-audio.js"></script>')
+    tags.append(
+        '<script type="module" src="' + MOUNT + 'deck-agent.js"'
+        ' data-panel="' + PANEL_URL + '"></script>'
+    )
 
     block = "\n" + "\n".join(tags) + "\n"
     lowered = html.lower()
@@ -87,6 +151,67 @@ def inject_framework(html: str) -> str:
         if at != -1:
             return html[:at] + block + html[at:]
     return html + block
+
+
+
+# Scanning a folder of multi-megabyte decks on every request would be wasteful,
+# and the answer only changes when a file does.
+_deck_cache = {}
+
+
+def describe_html(path: Path, root: Path) -> dict:
+    """Enough about one HTML file for the panel to offer or refuse it."""
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    cached = _deck_cache.get(key)
+    if cached is not None:
+        return cached
+
+    title = ""
+    is_deck = False
+    try:
+        head = path.read_text(encoding="utf-8", errors="replace")[:DECK_SCAN_BYTES]
+        is_deck = "<deck-stage" in head
+        m = re.search(r"<title[^>]*>(.*?)</title>", head, re.S | re.I)
+        if m:
+            title = html_entities.unescape(
+                re.sub(r"\s+", " ", m.group(1))).strip()[:120]
+    except OSError:
+        pass
+
+    info = {
+        "path": "/" + path.relative_to(root).as_posix(),
+        "name": path.name,
+        "title": title,
+        "isDeck": is_deck,
+        "size": stat.st_size,
+        "modified": int(stat.st_mtime),
+    }
+    _deck_cache[key] = info
+    return info
+
+
+def list_decks(root: Path) -> dict:
+    """Every HTML file in the served tree, decks first.
+
+    Non-decks are listed too rather than filtered out. A file that is missing
+    its <deck-stage> is exactly the file someone is about to wonder why they
+    cannot pick, and saying so beats leaving a gap in the list.
+    """
+    found = []
+    for depth in (root.glob("*.htm*"), root.glob("*/*.htm*")):
+        for p in depth:
+            if not p.is_file() or p.name.startswith("."):
+                continue
+            if p.name in FRAMEWORK_FILES:
+                continue
+            found.append(p)
+            if len(found) >= DECK_LIST_LIMIT:
+                break
+
+    items = [describe_html(p, root) for p in found]
+    items.sort(key=lambda d: (not d["isDeck"], d["name"].lower()))
+    return {"root": str(root), "decks": items, "truncated": len(found) >= DECK_LIST_LIMIT}
 
 
 def make_handler(root: Path, inject: bool):
@@ -113,18 +238,22 @@ def make_handler(root: Path, inject: bool):
         def do_GET(self):  # noqa: N802
             path = urllib.parse.urlparse(self.path).path
 
+            # What is there to present? Answered before the file mount so the
+            # name cannot collide with a framework file.
+            if path == DECKS_ENDPOINT:
+                body = json.dumps(list_decks(root)).encode("utf-8")
+                self._send_bytes(body, "application/json; charset=utf-8")
+                return
+
             # Framework files, wherever the deck itself lives.
             if path.startswith(MOUNT):
-                name = path[len(MOUNT):]
-                if name not in FRAMEWORK_FILES:
-                    self.send_error(404, "Not a framework file")
+                name = urllib.parse.unquote(path[len(MOUNT):])
+                target = framework_path(name)
+                if target is None:
+                    self.send_error(404, "Not a framework file: " + name)
                     return
-                target = FRAMEWORK_DIR / name
-                if not target.is_file():
-                    self.send_error(404, f"{name} missing from {FRAMEWORK_DIR}")
-                    return
-                ctype = "text/html" if name.endswith(".html") else "text/javascript"
-                self._send_bytes(target.read_bytes(), f"{ctype}; charset=utf-8")
+                ctype = CONTENT_TYPES.get(target.suffix, "application/octet-stream")
+                self._send_bytes(target.read_bytes(), ctype + "; charset=utf-8")
                 return
 
             # Decks: inject the framework unless the author wired it up.
@@ -192,6 +321,8 @@ def main() -> int:
     ap.add_argument("--root", type=Path, default=None,
                     help="folder to serve (default: the deck's own folder)")
     ap.add_argument("--no-open", action="store_true", help="do not launch a browser")
+    ap.add_argument("--deck-first", action="store_true",
+                    help="open the deck itself instead of the operator panel")
     ap.add_argument("--no-inject", action="store_true",
                     help="serve decks untouched instead of adding framework tags")
     args = ap.parse_args()
@@ -199,37 +330,47 @@ def main() -> int:
     try:
         root, deck = resolve_deck(args.root, args.deck)
     except FileNotFoundError as e:
-        print(f"error: {e} not found", file=sys.stderr)
+        print("error: " + str(e) + " not found", file=sys.stderr)
         return 1
     if not root.is_dir():
-        print(f"error: {root} is not a directory", file=sys.stderr)
+        print("error: " + str(root) + " is not a directory", file=sys.stderr)
         return 1
 
-    url = f"http://localhost:{args.port}/"
-    if deck is not None:
-        url += urllib.parse.quote(deck.as_posix())
+    base = "http://localhost:" + str(args.port)
+    deck_url = base + "/" + (urllib.parse.quote(deck.as_posix()) if deck else "")
+    if deck is not None and args.deck_first:
+        url = deck_url
+    elif deck is None:
+        url = base + PANEL_URL          # the panel will offer what it can find
+    else:
+        url = (base + PANEL_URL + "?deck="
+               + urllib.parse.quote("/" + deck.as_posix(), safe=""))
 
-    socketserver.TCPServer.allow_reuse_address = True
     try:
-        server = socketserver.TCPServer(
-            ("127.0.0.1", args.port), make_handler(root, not args.no_inject))
+        server = Server(("127.0.0.1", args.port), make_handler(root, not args.no_inject))
     except OSError as e:
-        print(f"error: cannot bind port {args.port} — {e}\n"
-              f"Another server may already be running; try --port {args.port + 1}.",
-              file=sys.stderr)
+        print("error: cannot bind port " + str(args.port) + " - " + str(e) + "\n"
+              "Another server may already be running; try --port "
+              + str(args.port + 1) + ".", file=sys.stderr)
         return 1
 
     print()
-    print("  deck-stage — local presenter server")
+    print("  deck-stage - local operator server")
     print("  " + "-" * 44)
-    print(f"  serving   : {root}")
-    print(f"  framework : {FRAMEWORK_DIR}  (mounted at {MOUNT})")
-    print(f"  open      : {url}")
+    print("  serving   : " + str(root))
+    print("  framework : " + str(FRAMEWORK_DIR) + "  (mounted at " + MOUNT + ")")
+    print("  open      : " + url)
     if deck is None:
-        print("  (no deck named and none guessed — pick one from the listing)")
+        print("  (no deck named - pick one in the panel)")
+    else:
+        print("  deck      : " + deck_url)
     print()
-    print("  Press P in the deck to open presenter notes,")
-    print("  then drag that window to your second screen.")
+    if deck is not None and not args.deck_first:
+        print("  The panel is the operator console: keep it on the laptop and")
+        print("  press Open projector to put the deck on the second screen.")
+    else:
+        print("  Press P in the deck to open the operator panel,")
+        print("  then drag that window to your second screen.")
     print()
     print("  Ctrl+C to stop.")
     print()
