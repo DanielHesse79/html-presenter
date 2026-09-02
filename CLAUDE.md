@@ -49,6 +49,10 @@ A deck is one HTML file that does not know this project exists:
 order, same length. `#deck-plan` is minutes per slide and is optional. Slides
 are the direct element children of `<deck-stage>`.
 
+A `<video>` marked `data-deck-play` (or `autoplay`, which is read as the
+same thing) starts when its slide arrives and rewinds when it leaves. Any
+other `<video>` is left alone.
+
 A slide marked `data-appendix` is in the file but out of the running order:
 backup material for questions. Arrows step over it, it carries no budget, and
 the parallel arrays still hold an entry for it (`0` in the plan).
@@ -169,6 +173,34 @@ the deck author's own CSS still applies. Key decisions:
 `slidechange` and `blackoutchange` are composed, bubbling CustomEvents. They are
 the integration point — hang new features off them rather than reaching into
 internals.
+
+### Per-slide media
+
+`deck-audio.js` owns every media element in the deck, video included. The
+name is historical; the mixer is the reason, since it already has to reach
+each `<video>` to apply the master level.
+
+Three decisions worth keeping:
+
+- **Video playback is opt-in.** `data-deck-play` is managed; anything else
+  keeps its scrub bar and its position across navigation, which the deck
+  contract has always promised. `autoplay` is rewritten to `data-deck-play`
+  at init, because a plain `autoplay` fires on page load while the slide is
+  hidden and is finished before the slide is ever shown. Nobody means that.
+- **The master silences more, never less.** `applyMaster()` used to write
+  `el.muted = muted` over every element, which cleared a `muted` the author
+  had written. On a video that attribute is often load-bearing: it is what
+  lets the clip start at all under the autoplay policy, so clearing it
+  stopped the video rather than unmuting it. The authored value is now kept
+  in `data-deck-base-muted` and OR-ed in, the same shape as
+  `data-deck-base-volume`.
+- **`init()` catches up.** `deck-stage` fires its first `slidechange` while
+  the slots are being assigned, which can be before this file has attached
+  its listener. A deck opened straight onto a media slide would otherwise
+  sit there silent and still, which is what the panel does every time it
+  reloads the projector onto the slide you were already on. `enter()` is
+  called by hand at the end of `init()`, guarded by `seenSlideChange` so a
+  deck whose event did arrive is not started twice.
 
 ### The cut-away
 

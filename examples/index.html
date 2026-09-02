@@ -10,6 +10,7 @@
   "Opening slide. The operator panel shows this note large enough to read at a glance, with the next one previewed underneath.",
   "Slides are plain HTML — a <section> per slide, styled however you like. deck-stage scales the whole thing to fit whatever screen it lands on.",
   "This slide is sounding. Pull the master fader in the panel, or press M, and the tone follows.\n\ndata-sound-volume is the clip's own level; the fader scales it rather than replacing it.",
+  "The clip starts when this slide arrives and rewinds when you leave, so coming back plays it from the top rather than resuming halfway through.",
   "The panel is the console: clock, editable times, volume, blackout. Export to PDF or PPTX from tools/ for a backup.",
   "Appendix. Reached from the rundown, never by pressing right. Answer the question, then press Back to return to where the talk was.",
   "Appendix. Arrows step within the appendix, so two or three related backups can be kept together and paged through."
@@ -18,7 +19,7 @@
 
 <!-- Minutes per slide, same order. Drives the presenter time plan. -->
 <script type="application/json" id="deck-plan">
-[0.5, 1, 1, 0.5, 0, 0]
+[0.5, 1, 1, 0.5, 0.5, 0, 0]
 </script>
 
 <style>
@@ -90,6 +91,21 @@
         <code>data-sound="clip.mp3"</code> to any slide and it starts on
         arrival, then stops when you leave. Pull the fader in the panel and
         you will hear this one follow it.
+      </p>
+    </div>
+  </section>
+
+  <section data-label="Video">
+    <div class="frame">
+      <div class="eyebrow">Video</div>
+      <h2>A clip that starts when you arrive.</h2>
+      <video src="assets/clip.mp4" data-deck-play muted playsinline
+             style="width: 58%; border-radius: 10px; display: block;
+                    margin: 0.6em 0;"></video>
+      <p>
+        <code>data-deck-play</code> plays a <code>&lt;video&gt;</code> on
+        arrival and takes it back to the first frame on the way out. A
+        plain <code>&lt;video&gt;</code> is left alone, scrub bar and all.
       </p>
     </div>
   </section>

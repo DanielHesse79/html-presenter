@@ -119,9 +119,10 @@ These are the things that actually break the program:
   container rather than the screen, which is rarely what you meant. Give the
   `<section>` `position: relative` and use `position: absolute` inside it.
 - **Do not assume a slide stops when I leave it.** Slides are hidden, never
-  unmounted, so form state and video positions survive navigation, but an
-  autoplaying video or a `setInterval` also keeps running off-screen. If a
-  slide starts something, stop it on the way out:
+  unmounted, so form state and scroll positions survive navigation, but a
+  `setInterval` or an animation also keeps running off-screen. Video marked
+  `data-deck-play` is handled for you; anything else a slide starts, stop
+  on the way out:
 
   ```html
   <script>
@@ -144,6 +145,30 @@ The clip plays when the slide arrives and stops when I move on.
 `data-sound-volume` is the clip's own level; my panel has a master fader that
 scales it, so set it relative to the other clips rather than to "loud enough".
 Any `<video>` in a slide follows the same master fader.
+
+## Optional video
+
+Only if I ask for it. Put `data-deck-play` on the element:
+
+```html
+<video src="assets/clip.mp4" data-deck-play muted playsinline></video>
+```
+
+It plays when its slide arrives and rewinds to the first frame when I move
+on, so coming back plays it from the top rather than resuming halfway. A
+`<video>` **without** that attribute is left alone entirely, which is what
+you want for a clip I scrub through by hand.
+
+- `autoplay` is read as `data-deck-play`. Written plainly it would fire on
+  page load, while the slide is still hidden, and be over before anyone
+  sees it.
+- Keep `muted` unless the clip needs its sound. A muted video always plays;
+  one with audio needs the browser to have seen a keypress first, which is
+  usually true because I arrive by pressing a key, but not if I open the
+  deck straight onto that slide.
+- Add `playsinline`, and give it a `width` in CSS rather than an attribute.
+- Encode H.264 in MP4. Keep it short and keep the file next to the deck;
+  everything is served from one folder.
 
 ## Before you finish
 

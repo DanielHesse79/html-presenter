@@ -128,6 +128,21 @@ without restarting that slide's budget.
 Appendix slides carry no time budget and do not move the plan totals. They
 are included in the PDF export, at the end.
 
+### Video
+
+`data-deck-play` on a `<video>` starts it when its slide arrives and takes
+it back to the first frame on the way out, so returning to the slide plays
+the clip again rather than resuming halfway through. `autoplay` is read the
+same way, because a plain `autoplay` fires while the slide is still hidden
+and is over before anyone sees it.
+
+A `<video>` with neither attribute is untouched, scrub bar and position
+intact. The thumbnails never play video: a second copy running a beat out
+of step with the projector is worse than a still frame.
+
+The master fader reaches video too, and a `muted` you wrote yourself is
+respected. The master can silence more than you asked for, never less.
+
 ## Presenting
 
 | Key | In the deck | In the operator panel |
@@ -188,6 +203,9 @@ Slides are the direct element children of `<deck-stage>`.
   lets you type budgets in with or without it.
 - **`data-sound="clip.mp3"`** on a slide plays a clip on arrival and stops it
   on the way out. `data-sound-loop` and `data-sound-volume="0.6"` are supported.
+- **`data-deck-play`** on a `<video>` plays it when its slide arrives and
+  rewinds it on the way out. `autoplay` means the same thing. A `<video>`
+  without either is left alone.
 - **`data-appendix`** keeps a slide out of the running order. Put these last,
   give them `0` in `#deck-plan`, and keep the arrays the same length as the
   slides.
